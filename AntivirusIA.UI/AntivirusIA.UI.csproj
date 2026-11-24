@@ -8,7 +8,12 @@
     <UseWPF>true</UseWPF>
     <LangVersion>latest</LangVersion>
     <RootNamespace>AntivirusIA.UI</RootNamespace>
+    <ApplicationIcon>Assets\coreguard.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\coreguard-256.png" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\AntivirusIA.AI\AntivirusIA.AI.csproj" />

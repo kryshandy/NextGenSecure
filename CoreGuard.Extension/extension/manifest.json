@@ -4,7 +4,19 @@
   "version": "0.1.0",
   "description": "Anti-phishing visuel et auto-remplissage securise pour CoreGuard.",
   "permissions": ["activeTab", "scripting", "nativeMessaging", "tabs"],
-  "action": { "default_title": "CoreGuard" },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "CoreGuard",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
+  },
   "background": { "service_worker": "background.js" },
   "content_scripts": [
     {
