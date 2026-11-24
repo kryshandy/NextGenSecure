@@ -5,4 +5,8 @@
   <Project Path="AntivirusIA.Infrastructure/AntivirusIA.Infrastructure.csproj" />
   <Project Path="AntivirusIA.Tests/AntivirusIA.Tests.csproj" />
   <Project Path="AntivirusIA.UI/AntivirusIA.UI.csproj" />
+  <Project Path="CoreGuard.RealTime/CoreGuard.RealTime.csproj" />
+  <Project Path="CoreGuard.RealTime.Tests/CoreGuard.RealTime.Tests.csproj" />
+  <Project Path="CoreGuard.Vault/CoreGuard.Vault.csproj" />
+  <Project Path="CoreGuard.Vault.Tests/CoreGuard.Vault.Tests.csproj" />
 </Solution>
