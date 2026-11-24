@@ -41,3 +41,28 @@ public sealed class InverseBoolConverter : IValueConverter
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => value is not true;
 }
+
+/// <summary>Visible quand un entier est strictement positif (pastille de compteur, bandeau...).</summary>
+public sealed class NonZeroToVisibleConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is int n && n > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>
+/// Vrai quand la valeur (enum ou texte) correspond au paramètre ; à l'inverse, un clic sur une puce
+/// (RadioButton) réécrit la valeur d'énumération. Permet de lier des filtres à une propriété d'énumération.
+/// </summary>
+public sealed class EnumEqualsConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is not null && string.Equals(value.ToString(), parameter?.ToString(), StringComparison.Ordinal);
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is true && parameter is not null
+            ? Enum.Parse(targetType, parameter.ToString()!)
+            : Binding.DoNothing;
+}

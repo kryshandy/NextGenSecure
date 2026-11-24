@@ -32,6 +32,9 @@ public sealed partial class QuarantineViewModel(IQuarantineService quarantine, I
 
     [ObservableProperty] private string _message = string.Empty;
 
+    /// <summary>Vrai quand le dernier message est une erreur (bandeau rouge au lieu de vert).</summary>
+    [ObservableProperty] private bool _messageIsError;
+
     public Task OnNavigatedToAsync()
     {
         Refresh();
@@ -57,12 +60,14 @@ public sealed partial class QuarantineViewModel(IQuarantineService quarantine, I
         try
         {
             await quarantine.RestoreAsync(row.Entry.Id);
+            MessageIsError = false;
             Message = $"« {row.FileName} » restauré.";
             alerts.Publish(AlertSeverity.Info, "Quarantaine", "Fichier restauré", row.FileName);
             Refresh();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
+            MessageIsError = true;
             Message = $"Restauration impossible : {ex.Message}";
         }
     }
@@ -77,11 +82,13 @@ public sealed partial class QuarantineViewModel(IQuarantineService quarantine, I
         try
         {
             await quarantine.DeleteAsync(row.Entry.Id);
+            MessageIsError = false;
             Message = $"« {row.FileName} » supprimé.";
             Refresh();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
+            MessageIsError = true;
             Message = $"Suppression impossible : {ex.Message}";
         }
     }

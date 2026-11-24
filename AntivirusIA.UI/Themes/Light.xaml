@@ -1,29 +1,70 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <!-- Palette Light : mêmes clés que l'autre thème, échangées à chaud par ThemeService -->
-    <Color x:Key="BgColor">#F3F5FA</Color>
+    <!-- Palette claire : mêmes clés que Dark.xaml, échangées à chaud par ThemeService.
+         Texte >= 4,5:1 (AA) ; les teintes « Text » sémantiques sont assombries pour rester lisibles sur fond pastel. -->
+    <Color x:Key="BgColor">#EEF1F8</Color>
     <Color x:Key="AccentColor">#2F5DE0</Color>
     <Color x:Key="ShadowColor">#1E293B</Color>
 
-    <SolidColorBrush x:Key="BgBrush" Color="#F3F5FA"/>
-    <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF"/>
+    <!-- Surfaces -->
+    <SolidColorBrush x:Key="BgBrush" Color="#EEF1F8"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#F8FAFD"/>
     <SolidColorBrush x:Key="CardBrush" Color="#FFFFFF"/>
-    <SolidColorBrush x:Key="CardHoverBrush" Color="#F5F7FC"/>
-    <SolidColorBrush x:Key="BorderBrush" Color="#DDE3EF"/>
+    <SolidColorBrush x:Key="CardHoverBrush" Color="#F3F6FC"/>
+    <SolidColorBrush x:Key="ElevatedBrush" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="BorderBrush" Color="#D9DFEC"/>
+    <SolidColorBrush x:Key="BorderStrongBrush" Color="#9AA6BF"/>
+
+    <!-- Texte -->
     <SolidColorBrush x:Key="TextBrush" Color="#0F172A"/>
     <SolidColorBrush x:Key="MutedBrush" Color="#475569"/>
+    <SolidColorBrush x:Key="FaintBrush" Color="#64748B"/>
+
+    <!-- Accent -->
     <SolidColorBrush x:Key="AccentBrush" Color="#2F5DE0"/>
     <SolidColorBrush x:Key="AccentHoverBrush" Color="#274FC4"/>
     <SolidColorBrush x:Key="AccentPressedBrush" Color="#1F3FA0"/>
     <SolidColorBrush x:Key="OnAccentBrush" Color="#FFFFFF"/>
     <SolidColorBrush x:Key="AccentSoftBrush" Color="#E4EBFF"/>
+    <SolidColorBrush x:Key="AccentTextBrush" Color="#2147B8"/>
+
+    <!-- Couleurs sémantiques : Sain / Suspect / Malveillant / Info -->
     <SolidColorBrush x:Key="SuccessBrush" Color="#059669"/>
     <SolidColorBrush x:Key="WarnBrush" Color="#D97706"/>
     <SolidColorBrush x:Key="DangerBrush" Color="#E11D48"/>
+    <SolidColorBrush x:Key="InfoBrush" Color="#2563EB"/>
     <SolidColorBrush x:Key="SuccessSoftBrush" Color="#D9F5E9"/>
     <SolidColorBrush x:Key="WarnSoftBrush" Color="#FDEBCB"/>
     <SolidColorBrush x:Key="DangerSoftBrush" Color="#FDDDE4"/>
+    <SolidColorBrush x:Key="InfoSoftBrush" Color="#DBE8FF"/>
     <SolidColorBrush x:Key="SuccessTextBrush" Color="#065F46"/>
     <SolidColorBrush x:Key="WarnTextBrush" Color="#92400E"/>
     <SolidColorBrush x:Key="DangerTextBrush" Color="#9F1239"/>
+    <SolidColorBrush x:Key="InfoTextBrush" Color="#1E40AF"/>
+
+    <!-- Dégradé de marque et fonds de héros -->
+    <LinearGradientBrush x:Key="BrandGradientBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#3B6DF0" Offset="0"/>
+        <GradientStop Color="#7C3AED" Offset="1"/>
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="HeroBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#EAF0FF" Offset="0"/>
+        <GradientStop Color="#FFFFFF" Offset="0.7"/>
+        <GradientStop Color="#FFFFFF" Offset="1"/>
+    </LinearGradientBrush>
+    <RadialGradientBrush x:Key="GlowSuccessBrush">
+        <GradientStop Color="#4010B981" Offset="0"/>
+        <GradientStop Color="#0010B981" Offset="1"/>
+    </RadialGradientBrush>
+    <RadialGradientBrush x:Key="GlowWarnBrush">
+        <GradientStop Color="#40F59E0B" Offset="0"/>
+        <GradientStop Color="#00F59E0B" Offset="1"/>
+    </RadialGradientBrush>
+    <RadialGradientBrush x:Key="GlowDangerBrush">
+        <GradientStop Color="#40E11D48" Offset="0"/>
+        <GradientStop Color="#00E11D48" Offset="1"/>
+    </RadialGradientBrush>
+    <!-- Ombres douces (statiques : un Effect ne se rethème pas à chaud, la ressource est échangée avec le dictionnaire) -->
+    <DropShadowEffect x:Key="Shadow.Card" Color="#1E293B" Opacity="0.09" BlurRadius="20" ShadowDepth="4" Direction="270"/>
+    <DropShadowEffect x:Key="Shadow.Raised" Color="#1E293B" Opacity="0.18" BlurRadius="40" ShadowDepth="12" Direction="270"/>
 </ResourceDictionary>

@@ -4,94 +4,96 @@
              xmlns:ctl="clr-namespace:AntivirusIA.UI.Controls"
              xmlns:vm="clr-namespace:AntivirusIA.UI.ViewModels">
     <UserControl.Resources>
-        <!-- Bouton chevron pour déplier le détail d'un résultat -->
-        <Style x:Key="ChevronToggle" TargetType="ToggleButton">
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ToggleButton">
-                        <Border x:Name="Bg" Width="36" Height="36" CornerRadius="10" Background="Transparent">
-                            <Path x:Name="Chevron" Data="{StaticResource Icon.Chevron}" Width="18" Height="18" Stretch="Uniform"
-                                  Fill="{DynamicResource MutedBrush}" RenderTransformOrigin="0.5,0.5">
-                                <Path.RenderTransform><RotateTransform x:Name="Rot" Angle="0"/></Path.RenderTransform>
-                            </Path>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bg" Property="Background" Value="{DynamicResource CardHoverBrush}"/></Trigger>
-                            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Bg" Property="Background" Value="{DynamicResource CardHoverBrush}"/></Trigger>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Trigger.EnterActions><BeginStoryboard><Storyboard>
-                                    <DoubleAnimation Storyboard.TargetName="Rot" Storyboard.TargetProperty="Angle" To="180" Duration="0:0:0.2"/>
-                                </Storyboard></BeginStoryboard></Trigger.EnterActions>
-                                <Trigger.ExitActions><BeginStoryboard><Storyboard>
-                                    <DoubleAnimation Storyboard.TargetName="Rot" Storyboard.TargetProperty="Angle" To="0" Duration="0:0:0.2"/>
-                                </Storyboard></BeginStoryboard></Trigger.ExitActions>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
+        <!-- Teinte du bandeau de résumé selon le niveau (Sain / Attention / Danger) -->
+        <Style x:Key="SummaryBanner" TargetType="Border">
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="16,12"/>
+            <Setter Property="Background" Value="{DynamicResource SuccessSoftBrush}"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding SummaryLevel}" Value="Attention"><Setter Property="Background" Value="{DynamicResource WarnSoftBrush}"/></DataTrigger>
+                <DataTrigger Binding="{Binding SummaryLevel}" Value="Danger"><Setter Property="Background" Value="{DynamicResource DangerSoftBrush}"/></DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="SummaryIcon" TargetType="Path">
+            <Setter Property="Data" Value="{StaticResource Icon.CheckCircle}"/>
+            <Setter Property="Fill" Value="{DynamicResource SuccessBrush}"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding SummaryLevel}" Value="Attention">
+                    <Setter Property="Data" Value="{StaticResource Icon.Warning}"/>
+                    <Setter Property="Fill" Value="{DynamicResource WarnBrush}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding SummaryLevel}" Value="Danger">
+                    <Setter Property="Data" Value="{StaticResource Icon.Alert}"/>
+                    <Setter Property="Fill" Value="{DynamicResource DangerBrush}"/>
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
     </UserControl.Resources>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
-        <Grid Style="{StaticResource Page.Root}" Margin="32,8,32,32">
+    <!-- Toute la page est une zone de dépôt -->
+    <Grid Background="Transparent" AllowDrop="True" Drop="OnDrop" DragEnter="OnDragEnter" DragLeave="OnDragLeave">
+        <Grid Style="{StaticResource Page.Root}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <StackPanel Margin="0,0,0,24">
+            <StackPanel Grid.Row="0" Margin="0,0,0,24">
                 <TextBlock Text="Analyse" Style="{StaticResource Text.Title}"/>
                 <TextBlock Text="Analysez un fichier ou un dossier : verdict local, puis explication de l'IA si nécessaire."
                            Style="{StaticResource Text.Muted}" Margin="0,4,0,0"/>
             </StackPanel>
 
-            <!-- ===== Zone de dépôt ===== -->
-            <Border Grid.Row="1" Style="{StaticResource Card}" Padding="0" Margin="0,0,0,16"
-                    AllowDrop="True" Drop="OnDrop" DragEnter="OnDragEnter" DragLeave="OnDragLeave">
-                <Grid Margin="16">
-                    <Rectangle x:Name="DropOutline" RadiusX="10" RadiusY="10" StrokeThickness="2" StrokeDashArray="5 4"
-                               Stroke="{DynamicResource BorderBrush}" Fill="Transparent"/>
-                    <StackPanel Margin="24" HorizontalAlignment="Center">
-                        <Border Width="56" Height="56" CornerRadius="16" Background="{DynamicResource AccentSoftBrush}" HorizontalAlignment="Center">
-                            <Path Data="{StaticResource Icon.Scan}" Width="28" Height="28" Stretch="Uniform" Fill="{DynamicResource AccentBrush}"/>
+            <!-- ===== Source à analyser ===== -->
+            <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,0,0,16">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Width="44" Height="44" CornerRadius="12" Background="{DynamicResource AccentSoftBrush}" Margin="0,0,16,0">
+                            <Path Data="{StaticResource Icon.Scan}" Width="22" Height="22" Stretch="Uniform" Fill="{DynamicResource AccentTextBrush}"/>
                         </Border>
-                        <TextBlock Text="Glissez un fichier ou un dossier ici" Style="{StaticResource Text.Heading}"
-                                   HorizontalAlignment="Center" Margin="0,16,0,4"/>
-                        <TextBlock Text="ou choisissez-le avec les boutons ci-dessous" Style="{StaticResource Text.Muted}" HorizontalAlignment="Center"/>
-
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,20,0,0">
-                            <Button Style="{StaticResource Btn.Secondary}" Command="{Binding PickFileCommand}" Margin="0,0,8,0">
-                                <StackPanel Orientation="Horizontal">
-                                    <Path Data="{StaticResource Icon.File}" Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource TextBrush}" Margin="0,0,8,0"/>
-                                    <TextBlock Text="Choisir un fichier"/>
-                                </StackPanel>
-                            </Button>
-                            <Button Style="{StaticResource Btn.Secondary}" Command="{Binding PickFolderCommand}">
-                                <StackPanel Orientation="Horizontal">
-                                    <Path Data="{StaticResource Icon.Folder}" Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource TextBrush}" Margin="0,0,8,0"/>
-                                    <TextBlock Text="Choisir un dossier"/>
-                                </StackPanel>
-                            </Button>
-                        </StackPanel>
-
-                        <Grid Margin="0,20,0,0" MinWidth="520">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBox Text="{Binding SelectedPath, UpdateSourceTrigger=PropertyChanged}"
-                                     IsEnabled="{Binding IsScanning, Converter={StaticResource InvBool}}"
-                                     AutomationProperties.Name="Chemin à analyser"/>
-                            <Button Grid.Column="1" Content="Lancer l'analyse" Margin="8,0,0,0" Command="{Binding StartScanCommand}"/>
-                        </Grid>
-                        <TextBlock Text="{Binding AiStatus}" Style="{StaticResource Text.Caption}" HorizontalAlignment="Center" Margin="0,12,0,0"/>
+                        <TextBox Grid.Column="1" VerticalAlignment="Center" MinHeight="44"
+                                 Text="{Binding SelectedPath, UpdateSourceTrigger=PropertyChanged}"
+                                 Tag="Chemin d'un fichier ou d'un dossier, ou glissez-le sur cette page"
+                                 IsEnabled="{Binding IsScanning, Converter={StaticResource InvBool}}"
+                                 AutomationProperties.Name="Chemin à analyser"/>
+                        <Button Grid.Column="2" Style="{StaticResource Btn.Secondary}" Command="{Binding PickFileCommand}" Margin="12,0,8,0"
+                                MinHeight="44" ToolTip="Choisir un fichier" AutomationProperties.Name="Choisir un fichier">
+                            <StackPanel Orientation="Horizontal">
+                                <Path Data="{StaticResource Icon.File}" Style="{StaticResource Ico}" Margin="0,0,8,0"/>
+                                <TextBlock Text="Fichier"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Grid.Column="3" Style="{StaticResource Btn.Secondary}" Command="{Binding PickFolderCommand}" Margin="0,0,8,0"
+                                MinHeight="44" ToolTip="Choisir un dossier" AutomationProperties.Name="Choisir un dossier">
+                            <StackPanel Orientation="Horizontal">
+                                <Path Data="{StaticResource Icon.Folder}" Style="{StaticResource Ico}" Margin="0,0,8,0"/>
+                                <TextBlock Text="Dossier"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Grid.Column="4" Command="{Binding StartScanCommand}" MinHeight="44" Padding="20,9"
+                                ToolTip="Lancer l'analyse du chemin saisi" AutomationProperties.Name="Lancer l'analyse">
+                            <StackPanel Orientation="Horizontal">
+                                <Path Data="{StaticResource Icon.Play}" Style="{StaticResource Ico}" Margin="0,0,8,0"/>
+                                <TextBlock Text="Lancer l'analyse"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                    <StackPanel Orientation="Horizontal" Margin="60,12,0,0">
+                        <Path Data="{StaticResource Icon.Sparkle}" Width="12" Height="12" Stretch="Uniform" Fill="{DynamicResource AccentTextBrush}"
+                              VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{Binding AiStatus}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center"/>
                     </StackPanel>
-                </Grid>
+                </StackPanel>
             </Border>
 
             <!-- ===== Progression ===== -->
@@ -99,93 +101,274 @@
                     Visibility="{Binding IsScanning, Converter={StaticResource BoolToVis}}">
                 <Grid>
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <StackPanel>
-                        <TextBlock Text="Analyse en cours..." Style="{StaticResource Text.Heading}"/>
-                        <TextBlock Text="{Binding ProgressText}" Style="{StaticResource Text.Caption}" Margin="0,4,0,12" TextTrimming="CharacterEllipsis"/>
-                        <ProgressBar Value="{Binding ProgressPercent}" Minimum="0" Maximum="100"
-                                     AutomationProperties.Name="Progression de l'analyse"/>
+
+                    <Grid Width="104" Height="104" Margin="0,0,24,0" AutomationProperties.Name="Progression de l'analyse">
+                        <ctl:ArcProgress Value="{Binding ProgressPercent}" Thickness="9" TrackBrush="{DynamicResource BorderBrush}"
+                                         ProgressBrush="{DynamicResource AccentBrush}" Margin="4"/>
+                        <TextBlock Text="{Binding ProgressPercent, StringFormat={}{0:0} %}" Style="{StaticResource Text.Section}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="Analyse en cours" Style="{StaticResource Text.Section}"/>
+                        <TextBlock Text="{Binding CurrentFile}" Style="{StaticResource Text.Caption}" Margin="0,4,0,12"
+                                   TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" MinHeight="16" ToolTip="{Binding CurrentFile}"/>
+                        <ProgressBar Minimum="0" Maximum="100" ctl:Smooth.Value="{Binding ProgressPercent}"
+                                     AutomationProperties.Name="Avancement de l'analyse"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <ContentControl Style="{StaticResource Pill}" Margin="0,0,8,0">
+                                <TextBlock><Run Text="{Binding FilesDone, Mode=OneWay}"/><Run Text=" / "/><Run Text="{Binding FilesTotal, Mode=OneWay}"/><Run Text=" fichiers"/></TextBlock>
+                            </ContentControl>
+                            <ContentControl Style="{StaticResource Pill}" Margin="0,0,8,0">
+                                <TextBlock><Run Text="Durée "/><Run Text="{Binding ElapsedText, Mode=OneWay}"/></TextBlock>
+                            </ContentControl>
+                            <ContentControl Style="{StaticResource Pill.Warn}"
+                                            Visibility="{Binding ThreatCount, Converter={StaticResource NonZeroToVis}}">
+                                <TextBlock><Run Text="{Binding ThreatCount, Mode=OneWay}"/><Run Text=" menace(s) trouvée(s)"/></TextBlock>
+                            </ContentControl>
+                        </StackPanel>
                     </StackPanel>
-                    <Button Grid.Column="1" Content="Annuler" Style="{StaticResource Btn.Secondary}" Margin="16,0,0,0"
-                            VerticalAlignment="Center" Command="{Binding CancelCommand}"/>
+
+                    <Button Grid.Column="2" Style="{StaticResource Btn.Secondary}" Margin="24,0,0,0" VerticalAlignment="Center"
+                            Command="{Binding CancelCommand}" ToolTip="Interrompre l'analyse" AutomationProperties.Name="Annuler l'analyse">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource Icon.Stop}" Style="{StaticResource Ico}" Width="12" Height="12" Margin="0,0,8,0"/>
+                            <TextBlock Text="Annuler"/>
+                        </StackPanel>
+                    </Button>
                 </Grid>
             </Border>
 
-            <!-- ===== Résultats ===== -->
-            <StackPanel Grid.Row="3" Visibility="{Binding HasResults, Converter={StaticResource BoolToVis}}">
-                <Grid Margin="0,0,0,12">
-                    <TextBlock Text="{Binding Summary}" Style="{StaticResource Text.Heading}" VerticalAlignment="Center"/>
-                    <Button Content="Effacer" Style="{StaticResource Btn.Ghost}" Padding="10,5" HorizontalAlignment="Right"
-                            Command="{Binding ClearCommand}"/>
+            <!-- ===== Bandeau de résumé (fin d'analyse) ===== -->
+            <Border Grid.Row="2" Style="{StaticResource SummaryBanner}" Margin="0,0,0,16"
+                    Visibility="{Binding ShowSummary, Converter={StaticResource BoolToVis}}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Path Style="{StaticResource SummaryIcon}" Width="22" Height="22" Stretch="Uniform" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1" Text="{Binding Summary}" Style="{StaticResource Text.Strong}" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="2" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="16,0,0,0">
+                        <Run Text="Durée "/><Run Text="{Binding ElapsedText, Mode=OneWay}"/>
+                    </TextBlock>
                 </Grid>
+            </Border>
 
-                <ItemsControl ItemsSource="{Binding Results}" Focusable="False">
-                    <ItemsControl.ItemTemplate>
+            <!-- ===== Filtres et tri des résultats ===== -->
+            <DockPanel Grid.Row="3" Margin="0,0,0,12" LastChildFill="True"
+                       Visibility="{Binding HasResults, Converter={StaticResource BoolToVis}}">
+                <Button DockPanel.Dock="Right" Style="{StaticResource Btn.Secondary}" MinHeight="32" Padding="12,4"
+                        Command="{Binding ClearCommand}" ToolTip="Effacer les résultats" AutomationProperties.Name="Effacer les résultats">
+                    <StackPanel Orientation="Horizontal">
+                        <Path Data="{StaticResource Icon.Trash}" Style="{StaticResource Ico}" Width="14" Height="14" Margin="0,0,6,0"/>
+                        <TextBlock Text="Effacer"/>
+                    </StackPanel>
+                </Button>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="12,0">
+                    <Path Data="{StaticResource Icon.Sort}" Width="14" Height="14" Stretch="Uniform" Fill="{DynamicResource FaintBrush}"
+                          VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <RadioButton Style="{StaticResource Chip}" Content="Gravité" Margin="0,0,6,0" ToolTip="Menaces d'abord, puis score décroissant"
+                                 IsChecked="{Binding Sort, Converter={StaticResource EnumEquals}, ConverterParameter=Severity}"/>
+                    <RadioButton Style="{StaticResource Chip}" Content="Score" Margin="0,0,6,0"
+                                 IsChecked="{Binding Sort, Converter={StaticResource EnumEquals}, ConverterParameter=Score}"/>
+                    <RadioButton Style="{StaticResource Chip}" Content="Nom" Margin="0"
+                                 IsChecked="{Binding Sort, Converter={StaticResource EnumEquals}, ConverterParameter=Name}"/>
+                </StackPanel>
+                <WrapPanel>
+                    <RadioButton Style="{StaticResource Chip}" IsChecked="{Binding Filter, Converter={StaticResource EnumEquals}, ConverterParameter=All}">
+                        <TextBlock><Run Text="Tous  "/><Run Text="{Binding CountAll, Mode=OneWay}"/></TextBlock>
+                    </RadioButton>
+                    <RadioButton Style="{StaticResource Chip}" IsChecked="{Binding Filter, Converter={StaticResource EnumEquals}, ConverterParameter=Malicious}">
+                        <TextBlock><Run Text="Malveillants  "/><Run Text="{Binding CountMalicious, Mode=OneWay}"/></TextBlock>
+                    </RadioButton>
+                    <RadioButton Style="{StaticResource Chip}" IsChecked="{Binding Filter, Converter={StaticResource EnumEquals}, ConverterParameter=Suspect}">
+                        <TextBlock><Run Text="Suspects  "/><Run Text="{Binding CountSuspect, Mode=OneWay}"/></TextBlock>
+                    </RadioButton>
+                    <RadioButton Style="{StaticResource Chip}" IsChecked="{Binding Filter, Converter={StaticResource EnumEquals}, ConverterParameter=Healthy}">
+                        <TextBlock><Run Text="Sains  "/><Run Text="{Binding CountHealthy, Mode=OneWay}"/></TextBlock>
+                    </RadioButton>
+                </WrapPanel>
+            </DockPanel>
+
+            <!-- ===== Résultats (liste virtualisée) ===== -->
+            <Grid Grid.Row="4" MinHeight="160">
+                <!-- État vide : aucune analyse -->
+                <ctl:EmptyState Icon="{StaticResource Icon.Scan}" Title="Prêt à analyser"
+                                Description="Déposez un fichier ou un dossier n'importe où sur cette page, ou utilisez les boutons ci-dessus. Les menaces seront classées par gravité."
+                                Visibility="{Binding ShowEmptyState, Converter={StaticResource BoolToVis}}"/>
+
+                <!-- État vide : le filtre ne retient rien -->
+                <ctl:EmptyState Icon="{StaticResource Icon.Search}" Title="Aucun résultat pour ce filtre"
+                                Description="Choisissez un autre verdict ci-dessus pour afficher les fichiers analysés.">
+                    <ctl:EmptyState.Style>
+                        <Style TargetType="ctl:EmptyState" BasedOn="{StaticResource {x:Type ctl:EmptyState}}">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding HasResults}" Value="True"/>
+                                        <Condition Binding="{Binding VisibleCount}" Value="0"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ctl:EmptyState.Style>
+                </ctl:EmptyState>
+
+                <ListBox Style="{StaticResource PlainListBox}" ItemsSource="{Binding ResultsView}"
+                         Visibility="{Binding HasResults, Converter={StaticResource BoolToVis}}">
+                    <ListBox.ItemTemplate>
                         <DataTemplate DataType="{x:Type vm:ScanItemViewModel}">
-                            <Border Style="{StaticResource Card}" Margin="0,0,0,8" Padding="16,12">
+                            <Border x:Name="Card" Style="{StaticResource Card.Flat}" Padding="0" Margin="0,0,12,8">
                                 <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="132"/>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <ctl:VerdictBadge Verdict="{Binding Verdict}" VerticalAlignment="Center"/>
-                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0">
-                                            <TextBlock Text="{Binding FileName}" Style="{StaticResource Text.Body}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                            <TextBlock Text="{Binding FullPath}" Style="{StaticResource Text.Caption}" TextTrimming="CharacterEllipsis" ToolTip="{Binding FullPath}"/>
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="8,0,16,0" MinWidth="88">
-                                            <TextBlock Text="{Binding Score, StringFormat=Score {0}/100}" Style="{StaticResource Text.Caption}" HorizontalAlignment="Right"/>
-                                            <ProgressBar Value="{Binding Score, Mode=OneWay}" Height="5" Margin="0,4,0,0"/>
-                                        </StackPanel>
-                                        <ToggleButton Grid.Column="3" Style="{StaticResource ChevronToggle}" IsChecked="{Binding IsExpanded}"
-                                                      AutomationProperties.Name="Afficher le détail" ToolTip="Détail"/>
-                                    </Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="4"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <!-- Liseré de verdict -->
+                                    <Border x:Name="Stripe" CornerRadius="12,0,0,12" Background="{DynamicResource SuccessBrush}"/>
 
-                                    <!-- Détail : explication + indices + actions -->
-                                    <StackPanel Grid.Row="1" Margin="0,12,0,0"
-                                                Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVis}}">
-                                        <Border CornerRadius="10" Padding="14" Background="{DynamicResource SurfaceBrush}">
-                                            <StackPanel>
-                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                                    <Path Data="{StaticResource Icon.Sparkle}" Width="14" Height="14" Stretch="Uniform"
-                                                          Fill="{DynamicResource AccentBrush}" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                                    <TextBlock Text="{Binding ExplanationSource}" Style="{StaticResource Text.Caption}" FontWeight="SemiBold"/>
-                                                    <TextBlock Text="{Binding AiConfidenceText}" Style="{StaticResource Text.Caption}" Margin="12,0,0,0"
-                                                               Visibility="{Binding AiConfidenceText, Converter={StaticResource StringToVis}}"/>
+                                    <StackPanel Grid.Column="1" Margin="16,12">
+                                        <!-- Ligne de synthèse : cliquable pour déplier -->
+                                        <Grid Background="Transparent" Cursor="Hand">
+                                            <Grid.InputBindings>
+                                                <MouseBinding Gesture="LeftClick" Command="{Binding ToggleExpandCommand}"/>
+                                            </Grid.InputBindings>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="120"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <ctl:VerdictBadge Verdict="{Binding Verdict}" VerticalAlignment="Center"/>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding FileName}" Style="{StaticResource Text.Strong}" TextTrimming="CharacterEllipsis"
+                                                               TextWrapping="NoWrap" VerticalAlignment="Center"/>
+                                                    <ContentControl Style="{StaticResource Pill.Danger}" Margin="8,0,0,0" Content="Preuve forte"
+                                                                    ToolTip="Au moins un indice est une preuve forte (empreinte connue, règle de contenu caractéristique) : il n'est jamais atténué par une signature numérique."
+                                                                    Visibility="{Binding HasStrongEvidence, Converter={StaticResource BoolToVis}}"/>
+                                                    <ContentControl Style="{StaticResource Pill.Accent}" Margin="8,0,0,0" Content="En quarantaine"
+                                                                    Visibility="{Binding IsQuarantined, Converter={StaticResource BoolToVis}}"/>
                                                 </StackPanel>
-                                                <TextBlock Text="{Binding Explanation}" Style="{StaticResource Text.Body}"/>
-                                                <TextBlock Text="{Binding Family, StringFormat=Famille supposée : {0}}" Style="{StaticResource Text.Caption}" Margin="0,6,0,0"
-                                                           Visibility="{Binding Family, Converter={StaticResource StringToVis}}"/>
+                                                <TextBlock Text="{Binding FullPath}" Style="{StaticResource Text.Caption}" TextTrimming="CharacterEllipsis"
+                                                           TextWrapping="NoWrap" ToolTip="{Binding FullPath}"/>
                                             </StackPanel>
-                                        </Border>
-                                        <ItemsControl ItemsSource="{Binding Indicators}" Margin="0,10,0,0" Focusable="False">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <TextBlock Text="{Binding}" Style="{StaticResource Text.Caption}" Margin="4,2"/>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                        <Button Content="Mettre en quarantaine" HorizontalAlignment="Left" Margin="0,12,0,0"
-                                                Style="{StaticResource Btn.Danger}" Command="{Binding QuarantineCommand}"
-                                                Visibility="{Binding CanQuarantine, Converter={StaticResource BoolToVis}}"/>
-                                        <TextBlock Text="Fichier mis en quarantaine." Style="{StaticResource Text.Caption}" Margin="0,12,0,0"
-                                                   Visibility="{Binding IsQuarantined, Converter={StaticResource BoolToVis}}"/>
+                                            <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="8,0,12,0" Width="104">
+                                                <TextBlock Text="{Binding ScoreText, StringFormat=Score {0}}" Style="{StaticResource Text.Caption}" HorizontalAlignment="Right"/>
+                                                <ProgressBar x:Name="ScoreBar" Height="6" Margin="0,4,0,0" Maximum="100" Foreground="{DynamicResource SuccessBrush}"
+                                                             Value="{Binding Score, Mode=OneWay}" AutomationProperties.Name="Score de risque"/>
+                                            </StackPanel>
+                                            <ToggleButton Grid.Column="3" Style="{StaticResource ChevronToggle}" IsChecked="{Binding IsExpanded}"
+                                                          AutomationProperties.Name="Afficher le détail" ToolTip="Afficher ou masquer le détail"/>
+                                        </Grid>
+
+                                        <!-- Détail : explication + indices (source, points, preuve forte) + actions -->
+                                        <StackPanel Margin="0,12,0,0" Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVis}}">
+                                            <Border CornerRadius="10" Padding="14" Background="{DynamicResource SurfaceBrush}"
+                                                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                                        <Path Data="{StaticResource Icon.Sparkle}" Width="14" Height="14" Stretch="Uniform"
+                                                              Fill="{DynamicResource AccentTextBrush}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{Binding ExplanationSource}" Style="{StaticResource Text.Caption}" FontWeight="SemiBold"/>
+                                                        <TextBlock Text="{Binding AiConfidenceText}" Style="{StaticResource Text.Caption}" Margin="12,0,0,0"
+                                                                   Visibility="{Binding AiConfidenceText, Converter={StaticResource StringToVis}}"/>
+                                                    </StackPanel>
+                                                    <TextBlock Text="{Binding Explanation}" Style="{StaticResource Text.Body}"/>
+                                                    <TextBlock Text="{Binding Family, StringFormat=Famille supposée : {0}}" Style="{StaticResource Text.Caption}" Margin="0,6,0,0"
+                                                               Visibility="{Binding Family, Converter={StaticResource StringToVis}}"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <StackPanel Margin="0,12,0,0" Visibility="{Binding HasIndicators, Converter={StaticResource BoolToVis}}">
+                                                <TextBlock Text="{Binding IndicatorsHeader}" Style="{StaticResource Text.Heading}" Margin="0,0,0,8"/>
+                                                <Grid Margin="12,0,12,4">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="120"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="56"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="SOURCE" Style="{StaticResource Text.Overline}"/>
+                                                    <TextBlock Grid.Column="1" Text="INDICE" Style="{StaticResource Text.Overline}"/>
+                                                    <TextBlock Grid.Column="2" Text="POINTS" Style="{StaticResource Text.Overline}" HorizontalAlignment="Right"/>
+                                                </Grid>
+                                                <ItemsControl ItemsSource="{Binding Indicators}" Focusable="False">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate DataType="{x:Type vm:IndicatorRow}">
+                                                            <Border x:Name="IndRow" Padding="12,8" Margin="0,0,0,4" CornerRadius="8"
+                                                                    Background="{DynamicResource SurfaceBrush}">
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="120"/>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                        <ColumnDefinition Width="56"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <ContentControl Style="{StaticResource Pill.Info}" Content="{Binding Source}" VerticalAlignment="Top"/>
+                                                                    <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                                                                        <TextBlock Text="{Binding Description}" Style="{StaticResource Text.Body}"/>
+                                                                        <ContentControl Style="{StaticResource Pill.Danger}" Content="Preuve forte" Margin="0,6,0,0"
+                                                                                        ToolTip="Preuve forte : jamais atténuée par la signature numérique"
+                                                                                        Visibility="{Binding Definitive, Converter={StaticResource BoolToVis}}"/>
+                                                                    </StackPanel>
+                                                                    <TextBlock Grid.Column="2" Text="{Binding PointsText}" Style="{StaticResource Text.Heading}"
+                                                                               HorizontalAlignment="Right" VerticalAlignment="Top"/>
+                                                                </Grid>
+                                                            </Border>
+                                                            <DataTemplate.Triggers>
+                                                                <DataTrigger Binding="{Binding Definitive}" Value="True">
+                                                                    <Setter TargetName="IndRow" Property="Background" Value="{DynamicResource DangerSoftBrush}"/>
+                                                                </DataTrigger>
+                                                            </DataTemplate.Triggers>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+
+                                            <Button HorizontalAlignment="Left" Margin="0,12,0,0" Style="{StaticResource Btn.Danger}"
+                                                    Command="{Binding QuarantineCommand}"
+                                                    Visibility="{Binding CanQuarantine, Converter={StaticResource BoolToVis}}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Path Data="{StaticResource Icon.Quarantine}" Style="{StaticResource Ico}" Margin="0,0,8,0"/>
+                                                    <TextBlock Text="Mettre en quarantaine"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <TextBlock Text="Fichier mis en quarantaine." Style="{StaticResource Text.Caption}" Margin="0,12,0,0"
+                                                       Visibility="{Binding IsQuarantined, Converter={StaticResource BoolToVis}}"/>
+                                        </StackPanel>
                                     </StackPanel>
                                 </Grid>
                             </Border>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding Verdict}" Value="Suspect">
+                                    <Setter TargetName="Stripe" Property="Background" Value="{DynamicResource WarnBrush}"/>
+                                    <Setter TargetName="ScoreBar" Property="Foreground" Value="{DynamicResource WarnBrush}"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Verdict}" Value="Malveillant">
+                                    <Setter TargetName="Stripe" Property="Background" Value="{DynamicResource DangerBrush}"/>
+                                    <Setter TargetName="ScoreBar" Property="Foreground" Value="{DynamicResource DangerBrush}"/>
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
                         </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </StackPanel>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <!-- Voile d'indication de dépôt (affiché pendant le survol d'un fichier) -->
+                <Border x:Name="DropOverlay" Visibility="Collapsed" IsHitTestVisible="False" Margin="-8" CornerRadius="16"
+                        Background="{DynamicResource AccentSoftBrush}" Opacity="0.92">
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <Path Data="{StaticResource Icon.Download}" Width="40" Height="40" Stretch="Uniform" Fill="{DynamicResource AccentTextBrush}"/>
+                        <TextBlock Text="Déposez pour analyser" Style="{StaticResource Text.Section}" Margin="0,12,0,0" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
         </Grid>
-    </ScrollViewer>
+    </Grid>
 </UserControl>

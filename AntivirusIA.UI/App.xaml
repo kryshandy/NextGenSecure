@@ -10,6 +10,7 @@
                 <!-- Indice 0 : palette (échangée à chaud par ThemeService) -->
                 <ResourceDictionary Source="Themes/Dark.xaml"/>
                 <ResourceDictionary Source="Themes/Icons.xaml"/>
+                <ResourceDictionary Source="Themes/Tokens.xaml"/>
                 <ResourceDictionary Source="Themes/Styles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
@@ -18,6 +19,7 @@
             <conv:ZeroToVisibleConverter x:Key="ZeroToVis"/>
             <conv:StringToVisibilityConverter x:Key="StringToVis"/>
             <conv:InverseBoolConverter x:Key="InvBool"/>
+            <conv:EnumEqualsConverter x:Key="EnumEquals"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -16,6 +16,15 @@
                       CornerRadius="0" UseAeroCaptionButtons="False"/>
     </WindowChrome.WindowChrome>
 
+    <!-- Raccourcis clavier de navigation : Ctrl+1 à Ctrl+5 -->
+    <Window.InputBindings>
+        <KeyBinding Key="D1" Modifiers="Control" Command="{Binding GoToCommand}" CommandParameter="1"/>
+        <KeyBinding Key="D2" Modifiers="Control" Command="{Binding GoToCommand}" CommandParameter="2"/>
+        <KeyBinding Key="D3" Modifiers="Control" Command="{Binding GoToCommand}" CommandParameter="3"/>
+        <KeyBinding Key="D4" Modifiers="Control" Command="{Binding GoToCommand}" CommandParameter="4"/>
+        <KeyBinding Key="D5" Modifiers="Control" Command="{Binding GoToCommand}" CommandParameter="5"/>
+    </Window.InputBindings>
+
     <Window.Resources>
         <!-- Association ViewModel -> Vue -->
         <DataTemplate DataType="{x:Type vm:DashboardViewModel}"><views:DashboardView/></DataTemplate>
@@ -27,7 +36,7 @@
 
     <Grid x:Name="RootGrid">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="264"/>
+            <ColumnDefinition Width="256"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
@@ -36,81 +45,91 @@
                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
             <Grid Margin="16,0,16,16">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="88"/>
+                    <RowDefinition Height="80"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <!-- Logo -->
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,8,0,0">
-                    <Border Width="40" Height="40" CornerRadius="12">
-                        <Border.Background>
-                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                <GradientStop Color="#6B93FF" Offset="0"/>
-                                <GradientStop Color="#7C4DFF" Offset="1"/>
-                            </LinearGradientBrush>
-                        </Border.Background>
-                        <Path Data="{StaticResource Icon.ShieldCheck}" Fill="White" Width="22" Height="22" Stretch="Uniform"/>
-                    </Border>
-                    <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
-                        <TextBlock Text="CoreGuard" Style="{StaticResource Text.Heading}" FontSize="19"/>
+                <!-- Logo : zone de déplacement de la fenêtre (cliquable en tant que barre de titre) -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="4,8,0,0">
+                    <Image Source="/Assets/coreguard-256.png" Width="44" Height="44" RenderOptions.BitmapScalingMode="HighQuality"/>
+                    <StackPanel Margin="8,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="CoreGuard" Style="{StaticResource Text.Section}" FontSize="19"/>
                         <TextBlock Text="Protection nouvelle génération" Style="{StaticResource Text.Caption}"/>
                     </StackPanel>
                 </StackPanel>
 
+                <TextBlock Grid.Row="1" Text="MENU" Style="{StaticResource Text.Overline}" Margin="16,8,0,8"/>
+
                 <!-- Navigation -->
-                <ItemsControl Grid.Row="1" ItemsSource="{Binding Items}" Margin="0,8,0,0" Focusable="False">
+                <ItemsControl Grid.Row="2" ItemsSource="{Binding Items}" Focusable="False">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Button Style="{StaticResource NavButton}"
                                     Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                     CommandParameter="{Binding}"
                                     Tag="{Binding IsSelected}"
+                                    ToolTip="{Binding ToolTipText}"
                                     AutomationProperties.Name="{Binding Title}"/>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
-                <!-- Pied : bascule de thème -->
-                <Border Grid.Row="2" Style="{StaticResource Card}" Padding="14,10" Effect="{x:Null}" Background="{DynamicResource CardBrush}">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="Thème" Style="{StaticResource Text.Heading}" FontSize="13"/>
-                            <TextBlock>
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Caption}">
-                                        <Setter Property="Text" Value="Clair"/>
+                <!-- Pied : état de la protection + bascule de thème -->
+                <StackPanel Grid.Row="3">
+                    <Border Style="{StaticResource Card.Flat}" Padding="14,12" Margin="0,0,0,8" Background="{DynamicResource CardBrush}">
+                        <Grid DataContext="{Binding Dashboard}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Ellipse Width="10" Height="10" VerticalAlignment="Center" Margin="0,0,10,0">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill" Value="{DynamicResource SuccessBrush}"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsDarkTheme}" Value="True">
-                                                <Setter Property="Text" Value="Sombre"/>
-                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Level}" Value="Attention"><Setter Property="Fill" Value="{DynamicResource WarnBrush}"/></DataTrigger>
+                                            <DataTrigger Binding="{Binding Level}" Value="Danger"><Setter Property="Fill" Value="{DynamicResource DangerBrush}"/></DataTrigger>
                                         </Style.Triggers>
                                     </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </StackPanel>
-                        <Button Grid.Column="1" Style="{StaticResource Btn.Secondary}" Padding="10,8"
-                                Command="{Binding ToggleThemeCommand}" ToolTip="Basculer thème sombre / clair"
-                                AutomationProperties.Name="Basculer le thème">
-                            <Path Width="18" Height="18" Stretch="Uniform" Fill="{DynamicResource TextBrush}">
-                                <Path.Style>
-                                    <Style TargetType="Path">
-                                        <Setter Property="Data" Value="{StaticResource Icon.Sun}"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsDarkTheme}" Value="True">
-                                                <Setter Property="Data" Value="{StaticResource Icon.Moon}"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Path.Style>
-                            </Path>
-                        </Button>
-                    </Grid>
-                </Border>
+                                </Ellipse.Style>
+                            </Ellipse>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="{Binding StatusShort}" Style="{StaticResource Text.Heading}" FontSize="13"/>
+                                <TextBlock Text="{Binding ModulesText}" Style="{StaticResource Text.Caption}"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <Border Style="{StaticResource Card.Flat}" Padding="14,10" Background="{DynamicResource CardBrush}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Path Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource MutedBrush}" Margin="0,0,10,0" VerticalAlignment="Center">
+                                    <Path.Style>
+                                        <Style TargetType="Path">
+                                            <Setter Property="Data" Value="{StaticResource Icon.Sun}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsDarkTheme}" Value="True">
+                                                    <Setter Property="Data" Value="{StaticResource Icon.Moon}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Path.Style>
+                                </Path>
+                                <TextBlock Text="{Binding ThemeName, StringFormat=Thème {0}}" Style="{StaticResource Text.Strong}" FontSize="13" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <!-- Interrupteur : coché = thème sombre ; la commande bascule et réapplique la palette -->
+                            <CheckBox Grid.Column="1" Style="{StaticResource Switch}" IsChecked="{Binding IsDarkTheme, Mode=OneWay}"
+                                      Command="{Binding ToggleThemeCommand}" ToolTip="Basculer thème sombre / clair"
+                                      AutomationProperties.Name="Thème sombre"/>
+                        </Grid>
+                    </Border>
+                </StackPanel>
             </Grid>
         </Border>
 
@@ -121,16 +140,68 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <!-- Barre de titre : zone de déplacement + boutons de fenêtre -->
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
-                        WindowChrome.IsHitTestVisibleInChrome="True">
-                <Button Style="{StaticResource CaptionBtn}" Tag="{StaticResource Icon.Minimize}" Click="OnMinimize"
-                        AutomationProperties.Name="Réduire" ToolTip="Réduire"/>
-                <Button Style="{StaticResource CaptionBtn}" Tag="{StaticResource Icon.Maximize}" Click="OnMaximize"
-                        AutomationProperties.Name="Agrandir" ToolTip="Agrandir / restaurer"/>
-                <Button Style="{StaticResource CaptionBtn.Close}" Tag="{StaticResource Icon.Close}" Click="OnClose"
-                        AutomationProperties.Name="Fermer" ToolTip="Fermer"/>
-            </StackPanel>
+            <!-- Barre de titre : page courante, pastille d'état, boutons de fenêtre -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="32,0,0,0">
+                    <TextBlock Text="CoreGuard" Style="{StaticResource Text.Caption}"/>
+                    <Path Data="{StaticResource Icon.Chevron}" Width="12" Height="12" Stretch="Uniform" Fill="{DynamicResource FaintBrush}"
+                          Margin="6,0" VerticalAlignment="Center">
+                        <Path.RenderTransform><RotateTransform Angle="-90" CenterX="6" CenterY="6"/></Path.RenderTransform>
+                    </Path>
+                    <TextBlock Text="{Binding Current.Title}" Style="{StaticResource Text.Caption}" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextBrush}"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Border x:Name="StatusPill" Height="24" CornerRadius="12" Padding="10,0" Margin="0,0,12,0" VerticalAlignment="Center"
+                            DataContext="{Binding Dashboard}" ToolTip="État global de la protection">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="{DynamicResource SuccessSoftBrush}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Level}" Value="Attention"><Setter Property="Background" Value="{DynamicResource WarnSoftBrush}"/></DataTrigger>
+                                    <DataTrigger Binding="{Binding Level}" Value="Danger"><Setter Property="Background" Value="{DynamicResource DangerSoftBrush}"/></DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse Width="7" Height="7" Margin="0,0,7,0">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill" Value="{DynamicResource SuccessBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Level}" Value="Attention"><Setter Property="Fill" Value="{DynamicResource WarnBrush}"/></DataTrigger>
+                                            <DataTrigger Binding="{Binding Level}" Value="Danger"><Setter Property="Fill" Value="{DynamicResource DangerBrush}"/></DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                            <TextBlock Text="{Binding StatusShort}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource SuccessTextBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Level}" Value="Attention"><Setter Property="Foreground" Value="{DynamicResource WarnTextBrush}"/></DataTrigger>
+                                            <DataTrigger Binding="{Binding Level}" Value="Danger"><Setter Property="Foreground" Value="{DynamicResource DangerTextBrush}"/></DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+                    <Button Style="{StaticResource CaptionBtn}" Tag="{StaticResource Icon.Minimize}" Click="OnMinimize"
+                            AutomationProperties.Name="Réduire" ToolTip="Réduire"/>
+                    <Button Style="{StaticResource CaptionBtn}" Tag="{StaticResource Icon.Maximize}" Click="OnMaximize"
+                            AutomationProperties.Name="Agrandir" ToolTip="Agrandir / restaurer"/>
+                    <Button Style="{StaticResource CaptionBtn.Close}" Tag="{StaticResource Icon.Close}" Click="OnClose"
+                            AutomationProperties.Name="Fermer" ToolTip="Fermer"/>
+                </StackPanel>
+            </Grid>
 
             <ContentControl Grid.Row="1" Content="{Binding Current.ViewModel}" Focusable="False"/>
         </Grid>

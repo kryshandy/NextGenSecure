@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Windows;
 using AntivirusIA.UI.Models;
 using AntivirusIA.UI.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -24,6 +25,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IPageViewModel
         // Le thème s'applique instantanément ; le reste attend « Appliquer »
         Settings.PropertyChanged += OnSettingsChanged;
         RefreshModelStatus();
+        UpdateBands();
     }
 
     public AppSettings Settings { get; }
@@ -32,6 +34,20 @@ public sealed partial class SettingsViewModel : ObservableObject, IPageViewModel
     [ObservableProperty] private bool _modelFound;
     [ObservableProperty] private string _resolvedModelPath = string.Empty;
     [ObservableProperty] private string _savedMessage = string.Empty;
+
+    // Largeurs relatives des trois bandes (Sain / Suspect / Malveillant) de l'aperçu des seuils
+    [ObservableProperty] private GridLength _bandHealthy = new(30, GridUnitType.Star);
+    [ObservableProperty] private GridLength _bandSuspect = new(40, GridUnitType.Star);
+    [ObservableProperty] private GridLength _bandMalicious = new(30, GridUnitType.Star);
+
+    private void UpdateBands()
+    {
+        int suspect = Settings.ThresholdSuspect;
+        int malicious = Settings.ThresholdMalicious;
+        BandHealthy = new GridLength(Math.Max(suspect, 1), GridUnitType.Star);
+        BandSuspect = new GridLength(Math.Max(malicious - suspect, 1), GridUnitType.Star);
+        BandMalicious = new GridLength(Math.Max(100 - malicious, 1), GridUnitType.Star);
+    }
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -43,6 +59,10 @@ public sealed partial class SettingsViewModel : ObservableObject, IPageViewModel
         else if (e.PropertyName == nameof(AppSettings.ModelPath))
         {
             RefreshModelStatus();
+        }
+        else if (e.PropertyName is nameof(AppSettings.ThresholdSuspect) or nameof(AppSettings.ThresholdMalicious))
+        {
+            UpdateBands();
         }
         SavedMessage = string.Empty;
     }

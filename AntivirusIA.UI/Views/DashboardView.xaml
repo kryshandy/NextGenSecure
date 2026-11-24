@@ -3,10 +3,58 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ctl="clr-namespace:AntivirusIA.UI.Controls"
              xmlns:vm="clr-namespace:AntivirusIA.UI.ViewModels"
-             xmlns:svc="clr-namespace:AntivirusIA.UI.Services"
              xmlns:mod="clr-namespace:AntivirusIA.UI.Models">
     <UserControl.Resources>
-        <!-- Carte de statistique réutilisable : DataContext = ActivityStats ; l'icône vient de Tag -->
+        <!-- Couleur du statut global selon ProtectionLevel (Sain = vert, Attention = orange, Danger = rouge) -->
+        <Style x:Key="HeroGlow" TargetType="Ellipse">
+            <Setter Property="Fill" Value="{DynamicResource GlowSuccessBrush}"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Level}" Value="Attention"><Setter Property="Fill" Value="{DynamicResource GlowWarnBrush}"/></DataTrigger>
+                <DataTrigger Binding="{Binding Level}" Value="Danger"><Setter Property="Fill" Value="{DynamicResource GlowDangerBrush}"/></DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="HeroRing" TargetType="ctl:ArcProgress">
+            <Setter Property="TrackBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="ProgressBrush" Value="{DynamicResource SuccessBrush}"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Level}" Value="Attention"><Setter Property="ProgressBrush" Value="{DynamicResource WarnBrush}"/></DataTrigger>
+                <DataTrigger Binding="{Binding Level}" Value="Danger"><Setter Property="ProgressBrush" Value="{DynamicResource DangerBrush}"/></DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="HeroIcon" TargetType="Path">
+            <Setter Property="Data" Value="{StaticResource Icon.ShieldCheck}"/>
+            <Setter Property="Fill" Value="{DynamicResource SuccessBrush}"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Level}" Value="Attention">
+                    <Setter Property="Data" Value="{StaticResource Icon.Warning}"/>
+                    <Setter Property="Fill" Value="{DynamicResource WarnBrush}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Level}" Value="Danger">
+                    <Setter Property="Data" Value="{StaticResource Icon.Alert}"/>
+                    <Setter Property="Fill" Value="{DynamicResource DangerBrush}"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="HeroLevelPill" TargetType="ContentControl" BasedOn="{StaticResource Pill.Success}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Level}" Value="Attention">
+                    <Setter Property="Background" Value="{DynamicResource WarnSoftBrush}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource WarnTextBrush}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Level}" Value="Danger">
+                    <Setter Property="Background" Value="{DynamicResource DangerSoftBrush}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource DangerTextBrush}"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Pastille d'icône des cartes de statistiques -->
+        <Style x:Key="StatTile" TargetType="Border">
+            <Setter Property="Width" Value="40"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+        </Style>
         <Style x:Key="StatIcon" TargetType="Path">
             <Setter Property="Width" Value="20"/>
             <Setter Property="Height" Value="20"/>
@@ -14,71 +62,64 @@
         </Style>
     </UserControl.Resources>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
-        <Grid Style="{StaticResource Page.Root}" Margin="32,8,32,32">
+    <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <Grid Style="{StaticResource Page.Root}">
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <StackPanel Grid.Row="0" Margin="0,0,0,24">
-                <TextBlock Text="Tableau de bord" Style="{StaticResource Text.Title}"/>
-                <TextBlock Text="Vue d'ensemble de la protection en temps réel." Style="{StaticResource Text.Muted}" Margin="0,4,0,0"/>
-            </StackPanel>
+            <!-- ===== En-tête de page + actions rapides ===== -->
+            <Grid Grid.Row="0" Margin="0,0,0,24">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="Tableau de bord" Style="{StaticResource Text.Title}"/>
+                    <TextBlock Text="Vue d'ensemble de la protection en temps réel." Style="{StaticResource Text.Muted}" Margin="0,4,0,0"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource Btn.Secondary}" Command="{Binding ScanFolderCommand}" Margin="0,0,8,0"
+                            ToolTip="Choisir un dossier puis l'analyser" AutomationProperties.Name="Analyser un dossier">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource Icon.Folder}" Style="{StaticResource Ico}" Margin="0,0,8,0"/>
+                            <TextBlock Text="Analyser un dossier"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding QuickScanCommand}" ToolTip="Analyse le dossier Téléchargements" AutomationProperties.Name="Analyse rapide">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource Icon.Bolt}" Style="{StaticResource Ico}" Margin="0,0,8,0"/>
+                            <TextBlock Text="Analyse rapide"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
 
-            <!-- ===== Statut global ===== -->
-            <Border Grid.Row="1" Style="{StaticResource Card}" Padding="24" Margin="0,0,0,16">
-                <Border.Resources>
-                    <!-- Couleurs du statut selon ProtectionLevel -->
-                    <Style x:Key="HeroFill" TargetType="Ellipse">
-                        <Setter Property="Fill" Value="{DynamicResource SuccessBrush}"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding Level}" Value="Attention"><Setter Property="Fill" Value="{DynamicResource WarnBrush}"/></DataTrigger>
-                            <DataTrigger Binding="{Binding Level}" Value="Danger"><Setter Property="Fill" Value="{DynamicResource DangerBrush}"/></DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                    <Style x:Key="HeroSoft" TargetType="Ellipse">
-                        <Setter Property="Fill" Value="{DynamicResource SuccessSoftBrush}"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding Level}" Value="Attention"><Setter Property="Fill" Value="{DynamicResource WarnSoftBrush}"/></DataTrigger>
-                            <DataTrigger Binding="{Binding Level}" Value="Danger"><Setter Property="Fill" Value="{DynamicResource DangerSoftBrush}"/></DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                    <Style x:Key="HeroIcon" TargetType="Path">
-                        <Setter Property="Data" Value="{StaticResource Icon.ShieldCheck}"/>
-                        <Setter Property="Fill" Value="{DynamicResource SuccessBrush}"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding Level}" Value="Attention">
-                                <Setter Property="Data" Value="{StaticResource Icon.Warning}"/>
-                                <Setter Property="Fill" Value="{DynamicResource WarnBrush}"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding Level}" Value="Danger">
-                                <Setter Property="Data" Value="{StaticResource Icon.Bug}"/>
-                                <Setter Property="Fill" Value="{DynamicResource DangerBrush}"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Resources>
+            <!-- ===== Statut global : anneau de score animé ===== -->
+            <Border Grid.Row="1" Style="{StaticResource Card.Hero}" Margin="0,0,0,16">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
-                    <Grid Width="112" Height="112" Margin="0,0,24,0">
-                        <Ellipse Style="{StaticResource HeroFill}" Opacity="0.35" RenderTransformOrigin="0.5,0.5">
-                            <Ellipse.RenderTransform><ScaleTransform x:Name="Halo" ScaleX="0.8" ScaleY="0.8"/></Ellipse.RenderTransform>
+                    <Grid Width="188" Height="188" Margin="0,0,40,0" VerticalAlignment="Center"
+                          AutomationProperties.Name="Score de protection" ToolTip="Score de protection : modules actifs et alertes récentes">
+                        <!-- Halo coloré qui respire -->
+                        <Ellipse Style="{StaticResource HeroGlow}" Margin="-46" RenderTransformOrigin="0.5,0.5" IsHitTestVisible="False">
+                            <Ellipse.RenderTransform><ScaleTransform x:Name="Halo" ScaleX="0.9" ScaleY="0.9"/></Ellipse.RenderTransform>
                             <Ellipse.Triggers>
                                 <EventTrigger RoutedEvent="FrameworkElement.Loaded">
                                     <BeginStoryboard>
                                         <Storyboard RepeatBehavior="Forever" AutoReverse="True">
-                                            <DoubleAnimation Storyboard.TargetName="Halo" Storyboard.TargetProperty="ScaleX" From="0.82" To="1" Duration="0:0:2.2">
+                                            <DoubleAnimation Storyboard.TargetName="Halo" Storyboard.TargetProperty="ScaleX" From="0.88" To="1" Duration="0:0:2.6">
                                                 <DoubleAnimation.EasingFunction><SineEase EasingMode="EaseInOut"/></DoubleAnimation.EasingFunction>
                                             </DoubleAnimation>
-                                            <DoubleAnimation Storyboard.TargetName="Halo" Storyboard.TargetProperty="ScaleY" From="0.82" To="1" Duration="0:0:2.2">
+                                            <DoubleAnimation Storyboard.TargetName="Halo" Storyboard.TargetProperty="ScaleY" From="0.88" To="1" Duration="0:0:2.6">
                                                 <DoubleAnimation.EasingFunction><SineEase EasingMode="EaseInOut"/></DoubleAnimation.EasingFunction>
                                             </DoubleAnimation>
                                         </Storyboard>
@@ -86,100 +127,234 @@
                                 </EventTrigger>
                             </Ellipse.Triggers>
                         </Ellipse>
-                        <Ellipse Width="84" Height="84" Style="{StaticResource HeroSoft}"/>
-                        <Path Width="40" Height="40" Stretch="Uniform" Style="{StaticResource HeroIcon}"/>
+                        <!-- Anneau décoratif pointillé en rotation lente -->
+                        <Ellipse Stroke="{DynamicResource BorderStrongBrush}" StrokeThickness="1" StrokeDashArray="1 6" Opacity="0.7"
+                                 RenderTransformOrigin="0.5,0.5" Margin="-2">
+                            <Ellipse.RenderTransform><RotateTransform x:Name="Spin" Angle="0"/></Ellipse.RenderTransform>
+                            <Ellipse.Triggers>
+                                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                    <BeginStoryboard>
+                                        <Storyboard RepeatBehavior="Forever">
+                                            <DoubleAnimation Storyboard.TargetName="Spin" Storyboard.TargetProperty="Angle" From="0" To="360" Duration="0:1:0"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                            </Ellipse.Triggers>
+                        </Ellipse>
+                        <ctl:ArcProgress Style="{StaticResource HeroRing}" Value="{Binding ProtectionScore}" Thickness="12" Margin="10"/>
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path Style="{StaticResource HeroIcon}" Width="30" Height="30" Stretch="Uniform" HorizontalAlignment="Center"/>
+                            <ctl:CountUpTextBlock Value="{Binding ProtectionScore}" Style="{StaticResource Text.Display}" FontSize="38"
+                                                  HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                            <TextBlock Text="Score de protection" Style="{StaticResource Text.Caption}" HorizontalAlignment="Center"/>
+                        </StackPanel>
                     </Grid>
 
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding StatusTitle}" Style="{StaticResource Text.Title}" FontSize="24"/>
-                        <TextBlock Text="{Binding StatusSubtitle}" Style="{StaticResource Text.Muted}" Margin="0,6,0,0"/>
-                        <TextBlock Text="{Binding ModulesText}" Style="{StaticResource Text.Caption}" Margin="0,10,0,0"/>
-                    </StackPanel>
+                        <TextBlock Text="ÉTAT DE LA PROTECTION" Style="{StaticResource Text.Overline}" Margin="0,0,0,8"/>
+                        <TextBlock Text="{Binding StatusTitle}" Style="{StaticResource Text.Title}"/>
+                        <TextBlock Text="{Binding StatusSubtitle}" Style="{StaticResource Text.Muted}" Margin="0,8,0,0" MaxWidth="560"
+                                   HorizontalAlignment="Left"/>
 
-                    <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                        <Button Content="Simuler une alerte" Style="{StaticResource Btn.Secondary}" Command="{Binding SimulateAlertCommand}"
-                                ToolTip="Injecte une alerte factice pour la démonstration"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
+                            <ContentControl Style="{StaticResource Pill.Accent}" Margin="0,0,8,0" Padding="10,4"
+                                            Content="{Binding ModulesText}"/>
+                            <ContentControl Style="{StaticResource Pill}" Padding="10,4">
+                                <TextBlock>
+                                    <Run Text="{Binding Stats.FilesScanned, Mode=OneWay}"/><Run Text=" fichiers analysés"/>
+                                </TextBlock>
+                            </ContentControl>
+                        </StackPanel>
+
+                        <Button Content="Simuler une alerte (démo)" Style="{StaticResource Btn.Ghost}" HorizontalAlignment="Left"
+                                Margin="-12,12,0,0" FontSize="12" MinHeight="30" Padding="12,4"
+                                Command="{Binding SimulateAlertCommand}" ToolTip="Injecte une alerte factice, libellée comme simulation, pour la démonstration"/>
                     </StackPanel>
                 </Grid>
             </Border>
 
             <!-- ===== Compteurs animés ===== -->
-            <UniformGrid Grid.Row="2" Columns="4" Margin="0,0,0,16" DataContext="{Binding Stats}">
-                <Border Style="{StaticResource Card}" Margin="0,0,16,0">
+            <Grid Grid.Row="2" Margin="0,0,0,24" DataContext="{Binding Stats}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/><ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="*"/><ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="*"/><ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource Card.Interactive}" Padding="20">
                     <StackPanel>
-                        <StackPanel Orientation="Horizontal">
-                            <Border Width="36" Height="36" CornerRadius="10" Background="{DynamicResource AccentSoftBrush}">
-                                <Path Style="{StaticResource StatIcon}" Data="{StaticResource Icon.Scan}" Fill="{DynamicResource AccentBrush}"/>
-                            </Border>
-                        </StackPanel>
-                        <ctl:CountUpTextBlock Value="{Binding FilesScanned}" Style="{StaticResource Text.Stat}" Margin="0,12,0,0"/>
+                        <Border Style="{StaticResource StatTile}" Background="{DynamicResource AccentSoftBrush}">
+                            <Path Style="{StaticResource StatIcon}" Data="{StaticResource Icon.Scan}" Fill="{DynamicResource AccentTextBrush}"/>
+                        </Border>
+                        <ctl:CountUpTextBlock Value="{Binding FilesScanned}" Style="{StaticResource Text.Stat}" Margin="0,16,0,0"/>
                         <TextBlock Text="Fichiers analysés" Style="{StaticResource Text.Muted}"/>
                     </StackPanel>
                 </Border>
-                <Border Style="{StaticResource Card}" Margin="0,0,16,0">
+                <Border Grid.Column="2" Style="{StaticResource Card.Interactive}" Padding="20">
                     <StackPanel>
-                        <Border Width="36" Height="36" CornerRadius="10" HorizontalAlignment="Left" Background="{DynamicResource DangerSoftBrush}">
+                        <Border Style="{StaticResource StatTile}" Background="{DynamicResource DangerSoftBrush}">
                             <Path Style="{StaticResource StatIcon}" Data="{StaticResource Icon.Bug}" Fill="{DynamicResource DangerBrush}"/>
                         </Border>
-                        <ctl:CountUpTextBlock Value="{Binding ThreatsFound}" Style="{StaticResource Text.Stat}" Margin="0,12,0,0"/>
+                        <ctl:CountUpTextBlock Value="{Binding ThreatsFound}" Style="{StaticResource Text.Stat}" Margin="0,16,0,0"/>
                         <TextBlock Text="Menaces détectées" Style="{StaticResource Text.Muted}"/>
                     </StackPanel>
                 </Border>
-                <Border Style="{StaticResource Card}" Margin="0,0,16,0">
+                <Border Grid.Column="4" Style="{StaticResource Card.Interactive}" Padding="20">
                     <StackPanel>
-                        <Border Width="36" Height="36" CornerRadius="10" HorizontalAlignment="Left" Background="{DynamicResource WarnSoftBrush}">
+                        <Border Style="{StaticResource StatTile}" Background="{DynamicResource WarnSoftBrush}">
                             <Path Style="{StaticResource StatIcon}" Data="{StaticResource Icon.Quarantine}" Fill="{DynamicResource WarnBrush}"/>
                         </Border>
-                        <ctl:CountUpTextBlock Value="{Binding Quarantined}" Style="{StaticResource Text.Stat}" Margin="0,12,0,0"/>
+                        <ctl:CountUpTextBlock Value="{Binding Quarantined}" Style="{StaticResource Text.Stat}" Margin="0,16,0,0"/>
                         <TextBlock Text="En quarantaine" Style="{StaticResource Text.Muted}"/>
                     </StackPanel>
                 </Border>
-                <Border Style="{StaticResource Card}">
+                <Border Grid.Column="6" Style="{StaticResource Card.Interactive}" Padding="20">
                     <StackPanel>
-                        <Border Width="36" Height="36" CornerRadius="10" HorizontalAlignment="Left" Background="{DynamicResource SuccessSoftBrush}">
-                            <Path Style="{StaticResource StatIcon}" Data="{StaticResource Icon.Bell}" Fill="{DynamicResource SuccessBrush}"/>
+                        <Border Style="{StaticResource StatTile}" Background="{DynamicResource InfoSoftBrush}">
+                            <Path Style="{StaticResource StatIcon}" Data="{StaticResource Icon.Bell}" Fill="{DynamicResource InfoBrush}"/>
                         </Border>
-                        <ctl:CountUpTextBlock Value="{Binding AlertCount}" Style="{StaticResource Text.Stat}" Margin="0,12,0,0"/>
+                        <ctl:CountUpTextBlock Value="{Binding AlertCount}" Style="{StaticResource Text.Stat}" Margin="0,16,0,0"/>
                         <TextBlock Text="Alertes de la session" Style="{StaticResource Text.Muted}"/>
                     </StackPanel>
                 </Border>
-            </UniformGrid>
+            </Grid>
 
-            <!-- ===== Flux d'alertes + modules ===== -->
-            <Grid Grid.Row="3">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="3*"/>
-                    <ColumnDefinition Width="16"/>
-                    <ColumnDefinition Width="2*"/>
-                </Grid.ColumnDefinitions>
+            <!-- ===== Modules de protection : cartes avec état et interrupteur ===== -->
+            <StackPanel Grid.Row="3" Margin="0,0,0,24">
+                <Grid Margin="0,0,0,12">
+                    <TextBlock Text="Modules de protection" Style="{StaticResource Text.Section}" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding ModulesText}" Style="{StaticResource Text.Caption}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                </Grid>
+                <ItemsControl ItemsSource="{Binding Modules}" Focusable="False" Margin="0,0,-12,0">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><UniformGrid Columns="4"/></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:ModuleCardViewModel}">
+                            <Border x:Name="Card" Style="{StaticResource Card.Interactive}" Margin="0,0,12,12" MinHeight="148"
+                                    ToolTip="{Binding ToolTipText}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border x:Name="Tile" Width="36" Height="36" CornerRadius="10" Background="{DynamicResource CardHoverBrush}">
+                                            <Path x:Name="Ico" Data="{Binding Icon}" Width="18" Height="18" Stretch="Uniform" Fill="{DynamicResource FaintBrush}"/>
+                                        </Border>
+                                        <CheckBox Grid.Column="2" Style="{StaticResource Switch}" IsChecked="{Binding IsOn}"
+                                                  Visibility="{Binding CanToggle, Converter={StaticResource BoolToVis}}"
+                                                  AutomationProperties.Name="{Binding Name}" ToolTip="Activer ou désactiver ce module"/>
+                                    </Grid>
+                                    <StackPanel Grid.Row="1" Margin="0,12,0,0">
+                                        <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Heading}" TextWrapping="Wrap"/>
+                                        <TextBlock Text="{Binding StatusText}" Style="{StaticResource Text.Caption}" Margin="0,2,0,0"
+                                                   TextTrimming="CharacterEllipsis" MaxHeight="34"/>
+                                    </StackPanel>
+                                    <Border x:Name="StatePill" Grid.Row="2" HorizontalAlignment="Left" CornerRadius="999" Padding="8,2" Margin="0,12,0,0"
+                                            Background="{DynamicResource CardHoverBrush}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse x:Name="Dot" Width="6" Height="6" Fill="{DynamicResource FaintBrush}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                            <TextBlock x:Name="StateText" Text="{Binding StateLabel}" FontSize="12" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource MutedBrush}"/>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding State}" Value="Active">
+                                    <Setter TargetName="Tile" Property="Background" Value="{DynamicResource SuccessSoftBrush}"/>
+                                    <Setter TargetName="Ico" Property="Fill" Value="{DynamicResource SuccessBrush}"/>
+                                    <Setter TargetName="StatePill" Property="Background" Value="{DynamicResource SuccessSoftBrush}"/>
+                                    <Setter TargetName="Dot" Property="Fill" Value="{DynamicResource SuccessBrush}"/>
+                                    <Setter TargetName="StateText" Property="Foreground" Value="{DynamicResource SuccessTextBrush}"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding State}" Value="Unavailable">
+                                    <Setter TargetName="Tile" Property="Background" Value="{DynamicResource WarnSoftBrush}"/>
+                                    <Setter TargetName="Ico" Property="Fill" Value="{DynamicResource WarnBrush}"/>
+                                    <Setter TargetName="StatePill" Property="Background" Value="{DynamicResource WarnSoftBrush}"/>
+                                    <Setter TargetName="Dot" Property="Fill" Value="{DynamicResource WarnBrush}"/>
+                                    <Setter TargetName="StateText" Property="Foreground" Value="{DynamicResource WarnTextBrush}"/>
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
 
-                <Border Grid.Column="0" Style="{StaticResource Card}" MinHeight="300">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
-                        <Grid Margin="0,0,0,12">
-                            <TextBlock Text="Alertes en temps réel" Style="{StaticResource Text.Heading}" VerticalAlignment="Center"/>
-                            <Button Content="Effacer" Style="{StaticResource Btn.Ghost}" Padding="10,5" HorizontalAlignment="Right"
-                                    Command="{Binding ClearAlertsCommand}"/>
-                        </Grid>
+            <!-- ===== Flux d'alertes en temps réel ===== -->
+            <Border Grid.Row="4" Style="{StaticResource Card}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
 
-                        <!-- État vide -->
-                        <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center"
-                                    Visibility="{Binding Alerts.Count, Converter={StaticResource ZeroToVis}}">
-                            <Path Data="{StaticResource Icon.ShieldCheck}" Width="40" Height="40" Stretch="Uniform"
-                                  Fill="{DynamicResource BorderBrush}" HorizontalAlignment="Center"/>
-                            <TextBlock Text="Aucune alerte : tout est calme." Style="{StaticResource Text.Muted}" Margin="0,12,0,0"
-                                       HorizontalAlignment="Center"/>
+                    <Grid Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <!-- Pastille « en direct » qui pulse -->
+                            <Grid Width="16" Height="16" Margin="0,0,10,0">
+                                <Ellipse Fill="{DynamicResource SuccessBrush}" Opacity="0.4" RenderTransformOrigin="0.5,0.5">
+                                    <Ellipse.RenderTransform><ScaleTransform x:Name="LivePulse" ScaleX="0.6" ScaleY="0.6"/></Ellipse.RenderTransform>
+                                    <Ellipse.Triggers>
+                                        <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                            <BeginStoryboard><Storyboard RepeatBehavior="Forever">
+                                                <DoubleAnimation Storyboard.TargetName="LivePulse" Storyboard.TargetProperty="ScaleX" From="0.6" To="1.3" Duration="0:0:1.8"/>
+                                                <DoubleAnimation Storyboard.TargetName="LivePulse" Storyboard.TargetProperty="ScaleY" From="0.6" To="1.3" Duration="0:0:1.8"/>
+                                                <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0.5" To="0" Duration="0:0:1.8"/>
+                                            </Storyboard></BeginStoryboard>
+                                        </EventTrigger>
+                                    </Ellipse.Triggers>
+                                </Ellipse>
+                                <Ellipse Width="8" Height="8" Fill="{DynamicResource SuccessBrush}"/>
+                            </Grid>
+                            <TextBlock Text="Alertes en temps réel" Style="{StaticResource Text.Section}" VerticalAlignment="Center"/>
+                            <ContentControl Style="{StaticResource Pill}" Margin="12,0,0,0" Content="{Binding FilteredAlertCount}"
+                                            ToolTip="Nombre d'alertes affichées"/>
                         </StackPanel>
+                        <Button Grid.Column="1" Content="Effacer" Style="{StaticResource Btn.Secondary}" MinHeight="32" Padding="12,4"
+                                Command="{Binding ClearAlertsCommand}" ToolTip="Vider le flux d'alertes"/>
+                    </Grid>
 
-                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" MaxHeight="420" Focusable="False">
-                            <ItemsControl ItemsSource="{Binding Alerts}" Focusable="False">
+                    <!-- Filtres par sévérité -->
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,16">
+                        <RadioButton Style="{StaticResource Chip}" Content="Toutes"
+                                     IsChecked="{Binding AlertFilter, Converter={StaticResource EnumEquals}, ConverterParameter=All}"/>
+                        <RadioButton Style="{StaticResource Chip}" Content="Critiques"
+                                     IsChecked="{Binding AlertFilter, Converter={StaticResource EnumEquals}, ConverterParameter=Critical}"/>
+                        <RadioButton Style="{StaticResource Chip}" Content="Avertissements"
+                                     IsChecked="{Binding AlertFilter, Converter={StaticResource EnumEquals}, ConverterParameter=Warning}"/>
+                        <RadioButton Style="{StaticResource Chip}" Content="Informations"
+                                     IsChecked="{Binding AlertFilter, Converter={StaticResource EnumEquals}, ConverterParameter=Info}"/>
+                    </StackPanel>
+
+                    <Grid Grid.Row="2" MinHeight="220">
+                        <!-- État vide illustré -->
+                        <ctl:EmptyState Icon="{StaticResource Icon.ShieldCheck}" Title="Tout est calme"
+                                        Description="{Binding AlertsEmptyText}"
+                                        ToneBrush="{DynamicResource SuccessBrush}" ToneSoftBrush="{DynamicResource SuccessSoftBrush}"
+                                        Visibility="{Binding FilteredAlertCount, Converter={StaticResource ZeroToVis}}"/>
+
+                        <ScrollViewer x:Name="AlertsScroll" VerticalScrollBarVisibility="Auto" MaxHeight="400" Focusable="False"
+                                      PreviewMouseWheel="OnAlertsWheel">
+                            <ItemsControl ItemsSource="{Binding AlertsView}" Focusable="False">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type mod:AlertItem}">
-                                        <Border x:Name="Row" Padding="12" Margin="0,0,0,8" CornerRadius="10"
-                                                Background="{DynamicResource SurfaceBrush}" RenderTransformOrigin="0.5,0.5">
+                                        <Border x:Name="Row" Padding="12" Margin="0,0,8,8" CornerRadius="10"
+                                                Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                                                RenderTransformOrigin="0.5,0.5">
                                             <Border.RenderTransform><TranslateTransform x:Name="Slide" X="0"/></Border.RenderTransform>
                                             <Border.Triggers>
                                                 <EventTrigger RoutedEvent="FrameworkElement.Loaded">
@@ -199,18 +374,24 @@
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
-                                                <Border x:Name="Badge" Width="32" Height="32" CornerRadius="9" VerticalAlignment="Top"
-                                                        Background="{DynamicResource AccentSoftBrush}" Margin="0,0,12,0">
-                                                    <Path x:Name="Ico" Data="{StaticResource Icon.Bell}" Width="16" Height="16" Stretch="Uniform"
-                                                          Fill="{DynamicResource AccentBrush}"/>
+                                                <Border x:Name="Badge" Width="36" Height="36" CornerRadius="10" VerticalAlignment="Top"
+                                                        Background="{DynamicResource InfoSoftBrush}" Margin="0,0,12,0">
+                                                    <Path x:Name="Ico" Data="{StaticResource Icon.Info}" Width="18" Height="18" Stretch="Uniform"
+                                                          Fill="{DynamicResource InfoBrush}"/>
                                                 </Border>
-                                                <StackPanel Grid.Column="1">
-                                                    <TextBlock Text="{Binding Title}" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Title}" Style="{StaticResource Text.Strong}"/>
                                                     <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Caption}" Margin="0,2,0,0"/>
                                                 </StackPanel>
-                                                <StackPanel Grid.Column="2" HorizontalAlignment="Right">
-                                                    <TextBlock Text="{Binding TimeText}" Style="{StaticResource Text.Caption}" HorizontalAlignment="Right"/>
-                                                    <TextBlock Text="{Binding Source}" Style="{StaticResource Text.Caption}" HorizontalAlignment="Right"/>
+                                                <StackPanel Grid.Column="2" HorizontalAlignment="Right" Margin="16,0,0,0">
+                                                    <Border x:Name="SevPill" CornerRadius="999" Padding="8,2" HorizontalAlignment="Right"
+                                                            Background="{DynamicResource InfoSoftBrush}">
+                                                        <TextBlock x:Name="SevText" Text="Info" FontSize="12" FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource InfoTextBrush}"/>
+                                                    </Border>
+                                                    <TextBlock Style="{StaticResource Text.Caption}" HorizontalAlignment="Right" Margin="0,6,0,0">
+                                                        <Run Text="{Binding TimeText, Mode=OneWay}"/><Run Text="  ·  "/><Run Text="{Binding Source, Mode=OneWay}"/>
+                                                    </TextBlock>
                                                 </StackPanel>
                                             </Grid>
                                         </Border>
@@ -219,11 +400,18 @@
                                                 <Setter TargetName="Badge" Property="Background" Value="{DynamicResource WarnSoftBrush}"/>
                                                 <Setter TargetName="Ico" Property="Fill" Value="{DynamicResource WarnBrush}"/>
                                                 <Setter TargetName="Ico" Property="Data" Value="{StaticResource Icon.Warning}"/>
+                                                <Setter TargetName="SevPill" Property="Background" Value="{DynamicResource WarnSoftBrush}"/>
+                                                <Setter TargetName="SevText" Property="Foreground" Value="{DynamicResource WarnTextBrush}"/>
+                                                <Setter TargetName="SevText" Property="Text" Value="Avertissement"/>
                                             </DataTrigger>
                                             <DataTrigger Binding="{Binding Severity}" Value="Critical">
                                                 <Setter TargetName="Badge" Property="Background" Value="{DynamicResource DangerSoftBrush}"/>
                                                 <Setter TargetName="Ico" Property="Fill" Value="{DynamicResource DangerBrush}"/>
-                                                <Setter TargetName="Ico" Property="Data" Value="{StaticResource Icon.Bug}"/>
+                                                <Setter TargetName="Ico" Property="Data" Value="{StaticResource Icon.Alert}"/>
+                                                <Setter TargetName="SevPill" Property="Background" Value="{DynamicResource DangerSoftBrush}"/>
+                                                <Setter TargetName="SevText" Property="Foreground" Value="{DynamicResource DangerTextBrush}"/>
+                                                <Setter TargetName="SevText" Property="Text" Value="Critique"/>
+                                                <Setter TargetName="Row" Property="BorderBrush" Value="{DynamicResource DangerBrush}"/>
                                             </DataTrigger>
                                         </DataTemplate.Triggers>
                                     </DataTemplate>
@@ -231,41 +419,8 @@
                             </ItemsControl>
                         </ScrollViewer>
                     </Grid>
-                </Border>
-
-                <!-- Modules de protection -->
-                <Border Grid.Column="2" Style="{StaticResource Card}">
-                    <StackPanel>
-                        <TextBlock Text="État de la protection" Style="{StaticResource Text.Heading}" Margin="0,0,0,12"/>
-                        <ItemsControl ItemsSource="{Binding Modules}" Focusable="False">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="{x:Type svc:ProtectionModule}">
-                                    <Grid Margin="0,0,0,12">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-                                        <Ellipse x:Name="Dot" Width="10" Height="10" Fill="{DynamicResource MutedBrush}"
-                                                 VerticalAlignment="Top" Margin="0,5,12,0"/>
-                                        <StackPanel Grid.Column="1">
-                                            <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
-                                            <TextBlock Text="{Binding StatusText}" Style="{StaticResource Text.Caption}"/>
-                                        </StackPanel>
-                                    </Grid>
-                                    <DataTemplate.Triggers>
-                                        <DataTrigger Binding="{Binding State}" Value="Active">
-                                            <Setter TargetName="Dot" Property="Fill" Value="{DynamicResource SuccessBrush}"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding State}" Value="Unavailable">
-                                            <Setter TargetName="Dot" Property="Fill" Value="{DynamicResource WarnBrush}"/>
-                                        </DataTrigger>
-                                    </DataTemplate.Triggers>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </Border>
-            </Grid>
+                </Grid>
+            </Border>
         </Grid>
     </ScrollViewer>
 </UserControl>
