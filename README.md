@@ -23,6 +23,13 @@ dotnet run --project AntivirusIA.UI
 
 `setup.ps1` restaure les paquets, **télécharge le modèle IA local** (~2 Go, hors git) et compile. Détails de collaboration : [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
+Pour une **distribution autonome** (runtime .NET + modèle embarqués, aucune installation requise sur la machine cible) :
+
+```powershell
+./scripts/publish.ps1
+```
+Résultat : un dossier unique `publish/CoreGuard` qui fonctionne hors-ligne.
+
 ## Architecture (Phase 1)
 
 ```
