@@ -7,8 +7,10 @@ CoreGuard combine des moteurs de détection classiques, de l'**IA embarquée** (
 
 | Phase | Périmètre | État |
 |-------|-----------|------|
-| **Phase 1** (en cours) | 100 % C# user-mode — aucune VM, aucun *test signing*, aucun driver. ~80 % du produit. | 🚧 En développement |
-| **Phase 2** (plus tard) | Driver noyau Rust (minifilter + `ObRegisterCallbacks`) pour transformer les détections en blocages inviolables. | ⏳ Reporté |
+| **Phase 1** (en cours) | 100 % user-mode (Ring 3 / service `SYSTEM`) — aucune VM, aucun *test signing*, aucun driver. | 🚧 En développement |
+| **Phase 2** (en pause) | Driver noyau Rust (minifilter + `ObRegisterCallbacks`), rebranchable via l'abstraction `IKernelActionProvider`. | ⏸️ En pause |
+
+> **État réel, fonctionnalité par fonctionnalité** : voir l'audit [`docs/AUDIT.md`](docs/AUDIT.md) (ce qui est complet, partiel ou absent, et le plan pour rendre les 10 démos démontrables).
 
 ---
 
@@ -35,12 +37,12 @@ Résultat : un dossier unique `publish/CoreGuard` qui fonctionne hors-ligne.
 ```
 CoreGuard.sln
 ├─ AntivirusIA.Core           Contrats, modèles, pipeline de scan, scoring
-├─ AntivirusIA.Engines        Moteurs : signatures, entropie, heuristiques, PE statique
-├─ AntivirusIA.AI             IA : classifieur ONNX (EMBER) + LLM local (LLamaSharp)
-├─ AntivirusIA.Infrastructure Quarantaine chiffrée (AES-256), historique SQLite
+├─ AntivirusIA.Engines        Moteurs : signatures, règles de contenu, entropie, heuristiques, PE statique, Authenticode
+├─ AntivirusIA.AI             IA : LLM local (LLamaSharp) — classifieur ONNX (EMBER) prévu
+├─ AntivirusIA.Infrastructure Quarantaine chiffrée (AES-256-GCM, clé DPAPI), historique SQLite
 ├─ CoreGuard.RealTime         Temps réel : FileSystemWatcher, canaris anti-ransomware
-├─ CoreGuard.Behavior         Comportement : ETW, AMSI, gardien de persistance
-├─ CoreGuard.Network          Pare-feu WFP, énumération ports, kill switch réseau
+├─ CoreGuard.Behavior         Comportement : ETW, client AMSI, gardien de persistance
+├─ CoreGuard.Network          Pare-feu Windows (COM), énumération ports, kill switch réseau — WFP natif prévu
 ├─ CoreGuard.Vault            Coffre-fort mots de passe (SQLite + Argon2id + AES-GCM)
 ├─ CoreGuard.Privacy          Privacy Guard (caméra/micro), presse-papiers, Mode Paranoïa
 ├─ AntivirusIA.UI             Interface WPF (MVVM) — dashboard temps réel
@@ -48,27 +50,36 @@ CoreGuard.sln
 └─ AntivirusIA.Tests          Tests (MSTest)
 ```
 
-> Note : les projets `CoreGuard.*` sont ajoutés au fil de la Phase 1. Le socle `AntivirusIA.*` existe déjà et est réutilisé.
+> À venir : `CoreGuard.Service` (Worker Service `SYSTEM`, IPC par named pipe) qui sortira les modules temps réel du processus de l'UI. Aujourd'hui, tout tourne dans `AntivirusIA.UI`.
 
 ---
 
-## Fonctionnalités Phase 1
+## Fonctionnalités
+
+✅ = disponible · 🟡 = partiel · ⏳ = prévu (détail dans [`docs/AUDIT.md`](docs/AUDIT.md))
 
 **Détection**
-- Scan à la demande (fichier / dossier récursif) + **protection temps réel** (`FileSystemWatcher`)
-- Moteurs : signatures SHA-256, entropie de Shannon, heuristiques (RLO, double extension…), **analyse PE statique** (en-têtes, IAT, entropie par section)
-- **IA niveau 1** — classifieur statique ONNX (type EMBER), scoring < 50 ms
-- **IA niveau 2** — LLM local (Llama 3.2 3B via LLamaSharp) : explique les alertes, désobfusque, **ne décide jamais** du blocage
-- **AMSI** — analyse des scripts PowerShell/VBS avant exécution
-- **ETW** — télémétrie comportementale (relations parent-enfant, `vssadmin delete shadows`, persistance)
+- ✅ Scan à la demande (fichier / dossier récursif) + scan automatique des nouveaux téléchargements
+- ✅ Signatures SHA-256 multi-sources (JSON + listes `.txt` issues de flux publics, dossier `%LocalAppData%\CoreGuard\signatures`)
+- ✅ **Règles de contenu** inspirées de YARA (texte, hex avec jokers, UTF-16, conditions) : EICAR, Mimikatz, contournement AMSI, suppression des clichés, notes de rançon, *download cradles*, vol d'identifiants navigateur, chargeurs réflectifs
+- ✅ **Analyse PE statique** (IAT pondérée, entropie et RWX par section, packers) ; un PE malformé est jugé suspect (échec sécurisé)
+- ✅ **Signature Authenticode** (WinVerifyTrust, hors ligne) : atténue les heuristiques, jamais les preuves fortes
+- ✅ **IA niveau 2** — LLM local (Llama 3.2 3B via LLamaSharp) : explique les alertes, **ne décide jamais** du blocage
+- 🟡 **ETW** — règles Office→shell (Base64), `vssadmin`/`wmic`/`diskshadow`, persistance (droits admin requis ; alerte sans blocage)
+- 🟡 **AMSI** — client `AmsiScanBuffer` ; l'interception des scripts (fournisseur AMSI) est prévue
+- ⏳ **IA niveau 1** — classifieur statique ONNX (type EMBER), scoring < 50 ms
 
 **Réaction / protection**
-- Quarantaine chiffrée AES-256, **kill switch réseau** (WFP), anti-ransomware par **canaris** + restauration
-- **Gardien de persistance** (Run/RunOnce, tâches planifiées, services)
+- ✅ Quarantaine **AES-256-GCM** authentifiée, clé protégée par **DPAPI**, restauration refusée si le fichier est altéré
+- 🟡 Anti-ransomware par **canaris** + restauration immédiate (l'arrêt du processus est encore simulé)
+- 🟡 **Gardien de persistance** (Run/RunOnce, tâches planifiées, services 7045) — détection sans pop-up de blocage
+- 🟡 Pare-feu : règles par application et **kill switch** via le pare-feu Windows ; WFP natif prévu
+- ⏳ Auto-défense (watchdog, ACL de processus, arrêt protégé par HMAC), scan mémoire, moniteur BadUSB, anti-infostealer
 
 **Modules utilisateur**
-- **Vault** (coffre-fort de mots de passe), **Privacy Guard** (caméra/micro), **presse-papiers intelligent** (anti-crypto-clipper), **Mode Paranoïa**, **Smart Download Guard**
-- **Anti-phishing visuel** par OCR (`Windows.Media.Ocr`) + lecture QR (quishing) via l'extension navigateur
+- ✅ **Presse-papiers intelligent** (anti-crypto-clipper, vidage des secrets après 30 s)
+- 🟡 **Privacy Guard** (détection caméra/micro ; bouton de coupure prévu), **Vault** (crypto complète, non branché à l'UI), **Mode Paranoïa** (interrupteur sans action réelle)
+- 🟡 **Anti-phishing visuel** par OCR (`Windows.Media.Ocr`) + QR (quishing) dans l'extension ; hôte Native Messaging à enregistrer à la main (`CoreGuard.Extension/INSTALL.txt`)
 
 ---
 
@@ -105,8 +116,10 @@ dotnet run --project AntivirusIA.UI
 ## Tests
 
 ```powershell
-dotnet test
+dotnet test AntivirusIA.slnx
 ```
+
+228 tests MSTest (moteurs, quarantaine, règles, comportement, réseau, vie privée, coffre, extension). Procédure de test manuelle : [`docs/TESTING.md`](docs/TESTING.md).
 
 ---
 
@@ -124,6 +137,7 @@ Le projet est pensé pour le travail à plusieurs (humains **et** sous-agents IA
 
 ## Sécurité & limites assumées
 
-- Sans le driver (Phase 1), 4 protections passent de « blocage » à « détection + réaction immédiate » : canaris, anti-`taskkill`, coffre-fort, anti-infostealer navigateur.
+- Sans le driver, 4 protections passent de « blocage » à « détection + réaction immédiate » : canaris, anti-`taskkill`, coffre-fort, anti-infostealer navigateur.
+- Tant que `CoreGuard.Service` n'existe pas, les données de CoreGuard (`%LocalAppData%\CoreGuard`) et le processus sont accessibles à tout programme lancé sous le même compte : DPAPI protège la clé de quarantaine contre la copie vers une autre machine, pas contre un malware de la même session.
 - L'IA assiste et explique ; elle ne remplace pas les règles déterministes.
 - Voir [`docs/PLAN.md`](docs/PLAN.md) pour le détail complet.

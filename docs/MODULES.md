@@ -1,22 +1,21 @@
-# CoreGuard — Modules (Phase 1)
+# CoreGuard — Modules
 
-Référence rapide des projets de la solution. Le détail du découpage en lots et des agents responsables est dans [`PLAN.md`](PLAN.md) ; l'architecture générale est dans le [`README.md`](../README.md).
+Référence rapide des projets de la solution. L'état détaillé de chaque fonctionnalité et le plan de finalisation sont dans [`AUDIT.md`](AUDIT.md) ; le découpage historique en lots est dans [`PLAN.md`](PLAN.md).
 
-Chaque module est un projet isolé qui référence `AntivirusIA.Core`.
+Chaque module est un projet isolé qui ne référence que `AntivirusIA.Core`. Le driver Rust (Ring 0) est **en pause** : aucun module n'en dépend.
 
-| Module | Rôle | État prévu (lot) |
-|--------|------|------------------|
-| `AntivirusIA.Core` | Contrats, modèles, pipeline de scan et scoring | Socle existant, réutilisé |
-| `AntivirusIA.Engines` | Moteurs de détection : signatures, entropie, heuristiques, analyse PE statique | Socle existant ; analyse PE statique en lot B1 |
-| `AntivirusIA.AI` | Classifieur ONNX (type EMBER) et LLM local (LLamaSharp) pour l'explication | Lot B2 (classifieur ONNX) ; lot A2 (provider LLM) |
-| `AntivirusIA.Infrastructure` | Quarantaine chiffrée AES-256 et historique SQLite | Socle existant, réutilisé |
-| `CoreGuard.Behavior` | Protection comportementale : AMSI, ETW, surveillance de fichiers, persistance | Lot B3 (AMSI, ETW) ; lots C2 (canaris) et C3 (persistance) |
-| `CoreGuard.Network` | Pare-feu WFP, énumération des ports, kill switch réseau | Lot C1 |
-| `CoreGuard.Vault` | Coffre-fort de mots de passe (SQLite, Argon2id, AES-256-GCM, générateur) | Lot D1 |
-| `CoreGuard.RealTime` | Protection temps réel (`FileSystemWatcher`) : module non détaillé dans les sources, voir note ci-dessous | Non planifié séparément dans `PLAN.md` |
-| `CoreGuard.Privacy` | Privacy Guard (caméra/micro), presse-papiers intelligent, Mode Paranoïa | Lot D2 |
-| `AntivirusIA.UI` | Interface WPF (MVVM) : dashboard, scan, quarantaine, historique, thème | Lot A3 |
-| `CoreGuard.Extension` | Extension navigateur Manifest V3, Native Messaging, OCR (phishing) et lecture QR | Lot D3 |
-| `AntivirusIA.Tests` | Tests MSTest, minimaux pour chaque livrable | Transverse (lot E2 pour les tests supplémentaires) |
-
-> **Note** : `CoreGuard.RealTime` n'apparaît pas dans l'architecture du `README.md`, où la surveillance temps réel (`FileSystemWatcher`) est rattachée à `CoreGuard.Behavior`. Ce module et son périmètre exact restent à arbitrer par l'orchestrateur.
+| Module | Rôle | État |
+|--------|------|------|
+| `AntivirusIA.Core` | Contrats (`IDetectionEngine`, `IFileTrustProvider`, `IQuarantineService`…), modèles, pipeline de scan, scoring | Complet |
+| `AntivirusIA.Engines` | Signatures multi-sources, règles de contenu (`rules.json`), heuristiques, entropie, PE statique, Authenticode | Complet |
+| `AntivirusIA.AI` | LLM local (LLamaSharp) pour l'explication ; classifieur ONNX EMBER prévu | Partiel |
+| `AntivirusIA.Infrastructure` | Quarantaine AES-256-GCM (clé DPAPI), historique SQLite | Complet (ACL NTFS prévues) |
+| `CoreGuard.RealTime` | Surveillance de dossiers (`FileSystemWatcher`), canaris anti-ransomware | Partiel (arrêt du processus simulé) |
+| `CoreGuard.Behavior` | ETW processus, règles comportementales, client AMSI, gardien de persistance | Partiel (détection sans blocage) |
+| `CoreGuard.Network` | Pare-feu Windows (COM), ports, kill switch ; WFP natif prévu | Partiel |
+| `CoreGuard.Vault` | Coffre-fort (SQLite, Argon2id, AES-256-GCM) | Complet côté crypto, non branché à l'UI |
+| `CoreGuard.Privacy` | Privacy Guard (caméra/micro), presse-papiers intelligent, Mode Paranoïa | Partiel (Paranoïa sans action réelle) |
+| `AntivirusIA.UI` | Interface WPF (MVVM) et composition root (DI) ; héberge aujourd'hui les modules temps réel | Partiel |
+| `CoreGuard.Extension` | Extension MV3, hôte Native Messaging, OCR anti-phishing, QR | Partiel (hôte à enregistrer à la main) |
+| `CoreGuard.Service` | Worker Service `SYSTEM`, IPC named pipe, auto-défense | Prévu |
+| Tests (`*.Tests`) | 228 tests MSTest | Complet pour l'existant |
