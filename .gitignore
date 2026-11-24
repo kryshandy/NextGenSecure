@@ -362,7 +362,7 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 # CoreGuard models & local artifacts
-models/
+/models/
 *.gguf
 *.onnx
 vault.cgdb
