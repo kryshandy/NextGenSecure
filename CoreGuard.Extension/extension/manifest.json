@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "CoreGuard Browser Shield",
+  "version": "0.1.0",
+  "description": "Anti-phishing visuel et auto-remplissage securise pour CoreGuard.",
+  "permissions": ["activeTab", "scripting", "nativeMessaging", "tabs"],
+  "action": { "default_title": "CoreGuard" },
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://*/*", "http://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

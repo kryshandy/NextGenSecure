@@ -1,0 +1,19 @@
+Installation de l'hote Native Messaging CoreGuard (Chrome / Chromium, Windows)
+==============================================================================
+
+1. Compiler : dotnet build CoreGuard.Extension/CoreGuard.Extension.csproj -c Release
+2. Charger l'extension : chrome://extensions > Mode developpeur > "Charger l'extension non empaquetee"
+   -> dossier CoreGuard.Extension\extension. Noter l'ID genere.
+3. Editer com.coreguard.host.json (a cote de l'exe) :
+   - "path" : chemin ABSOLU de CoreGuard.Extension.exe
+   - "allowed_origins" : ["chrome-extension://<ID_EXTENSION>/"]  (aucun joker autorise)
+4. Enregistrer le manifeste (cle par utilisateur, sans droits admin) :
+
+   reg add "HKCU\Software\Google\Chrome\NativeMessagingHosts\com.coreguard.host" /ve /t REG_SZ /d "C:\chemin\vers\com.coreguard.host.json" /f
+
+   Edge : HKCU\Software\Microsoft\Edge\NativeMessagingHosts\com.coreguard.host
+5. Redemarrer le navigateur.
+
+Securite : l'hote ne fait confiance a aucune donnee venant de l'extension ou de la page
+(taille bornee, JSON valide, types de message en liste blanche).
+Desinstallation : reg delete "HKCU\Software\Google\Chrome\NativeMessagingHosts\com.coreguard.host" /f

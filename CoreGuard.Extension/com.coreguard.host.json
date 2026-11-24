@@ -1,0 +1,9 @@
+{
+  "name": "com.coreguard.host",
+  "description": "Hote Native Messaging CoreGuard (analyse anti-phishing, identifiants)",
+  "path": "CoreGuard.Extension.exe",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://REMPLACER_PAR_ID_EXTENSION/"
+  ]
+}
