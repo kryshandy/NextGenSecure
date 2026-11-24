@@ -17,6 +17,11 @@ public sealed class EntropyAnalyzer : IDetectionEngine
         if (!FileTypes.Executables.Contains(ext) || report.SizeBytes < 1024)
             return indicators;
 
+        // Un vrai PE est déjà évalué section par section par PeStaticEngine : on ne compte pas l'entropie deux fois
+        // (l'entropie globale d'un installeur contenant une archive serait de toute façon trompeuse)
+        if (await StartsWithMzAsync(report.FullPath, ct))
+            return indicators;
+
         double entropie = await ComputeEntropyAsync(report.FullPath, ct);
         if (entropie >= Seuil)
         {
@@ -25,6 +30,14 @@ public sealed class EntropyAnalyzer : IDetectionEngine
         }
 
         return indicators;
+    }
+
+    private static async Task<bool> StartsWithMzAsync(string path, CancellationToken ct)
+    {
+        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, bufferSize: 1, useAsync: true);
+        var header = new byte[2];
+        int read = await stream.ReadAtLeastAsync(header, 2, throwOnEndOfStream: false, ct);
+        return read == 2 && header[0] == 'M' && header[1] == 'Z';
     }
 
     // Entropie de Shannon, de 0 (contenu répétitif) à 8 (contenu aléatoire)

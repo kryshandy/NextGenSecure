@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 using AntivirusIA.Core.Models;
@@ -137,22 +137,25 @@ public sealed class PeStaticEngineTests
     }
 
     [TestMethod]
-    public async Task Fichier_MZ_corrompu_ne_leve_pas_d_exception()
+    public async Task Fichier_MZ_corrompu_est_signale_sans_exception()
     {
         var corrompu = new byte[512];
         corrompu[0] = (byte)'M'; corrompu[1] = (byte)'Z';
         RandomNumberGenerator.Fill(corrompu.AsSpan(2));
 
+        // Échec sécurisé : un PE impossible à analyser n'est pas déclaré sain
         var indices = await Analyser(corrompu);
-        Assert.AreEqual(0, indices.Count);
+        Assert.AreEqual(1, indices.Count);
+        Assert.AreEqual(PeStaticEngine.PointsPeMalforme, indices[0].Points);
     }
 
     [TestMethod]
-    public async Task Pe_tronque_ne_leve_pas_d_exception()
+    public async Task Pe_tronque_est_signale_sans_exception()
     {
         var pe = ConstruirePe([new(".text", Code, CodeNormal())], ["ExitProcess"]);
         var indices = await Analyser(pe[..0x150]);
-        Assert.AreEqual(0, indices.Count);
+        Assert.IsTrue(indices.All(i => i.Points == PeStaticEngine.PointsPeMalforme || i.Description.Contains("imports")));
+        Assert.IsTrue(indices.Count >= 1, "un PE tronqué doit être signalé");
     }
 
     [TestMethod]
@@ -231,6 +234,23 @@ public sealed class PeStaticEngineTests
         var indices = await Analyser(pe);
 
         Assert.IsTrue(indices.Any(i => i.Description.Contains("taille virtuelle") && i.Points == 10));
+    }
+
+    [TestMethod]
+    public async Task Fichier_verrouille_remonte_une_erreur_d_acces()
+    {
+        string chemin = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".exe");
+        await File.WriteAllBytesAsync(chemin, ConstruirePe([new(".text", Code, CodeNormal())], ["ExitProcess"]));
+        try
+        {
+            using var verrou = new FileStream(chemin, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            var rapport = new FileReport { FullPath = chemin, SizeBytes = new FileInfo(chemin).Length };
+            await Assert.ThrowsExactlyAsync<IOException>(() => new PeStaticEngine().AnalyzeAsync(rapport));
+        }
+        finally
+        {
+            File.Delete(chemin);
+        }
     }
 
     [TestMethod]

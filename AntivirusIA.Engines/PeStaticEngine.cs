@@ -16,6 +16,8 @@ public sealed class PeStaticEngine : IDetectionEngine
     private const int MaxImports = 20000;
     private const int MaxDll = 512;
     private const int PointsMaxImports = 35;
+    public const int PointsPeMalforme = 30;
+    public const int PointsImportsCorrompus = 10;
 
     // Imports sensibles (API fréquemment utilisées pour l'injection / le chargement dynamique) et leur poids
     private static readonly Dictionary<string, int> ImportsSensibles = new(StringComparer.Ordinal)
@@ -54,15 +56,12 @@ public sealed class PeStaticEngine : IDetectionEngine
 
             return AnalyzeStream(stream, ct);
         }
-        catch (OperationCanceledException)
+        catch (FileNotFoundException)
         {
-            throw;
+            return Array.Empty<Indicator>(); // supprimé entre-temps
         }
-        catch (Exception)
-        {
-            // Fichier verrouillé, bloqué par un autre antivirus, illisible... : aucun indicateur, aucune exception
-            return Array.Empty<Indicator>();
-        }
+        // Les erreurs d'accès (fichier verrouillé, bloqué par un autre antivirus...) remontent au pipeline,
+        // qui les inscrit en avertissement : un fichier illisible ne doit pas passer silencieusement pour « sain ».
     }
 
     // Analyse un flux (lisible et positionnable) contenant un PE. Renvoie une liste vide
@@ -92,17 +91,21 @@ public sealed class PeStaticEngine : IDetectionEngine
             }
             catch (Exception e) when (e is not OperationCanceledException)
             {
-                // Table d'imports corrompue : on conserve les indicateurs déjà obtenus sur les sections
+                // Table d'imports corrompue : on conserve les indicateurs des sections et on signale l'anomalie
+                indicators.Add(new Indicator(Name,
+                    "Table d'imports corrompue ou illisible : structure volontairement altérée ?", PointsImportsCorrompus));
             }
         }
-        catch (OperationCanceledException)
+        catch (Exception e) when (e is OperationCanceledException or IOException or UnauthorizedAccessException)
         {
-            throw;
+            throw; // annulation ou erreur de lecture : ce n'est pas une anomalie du fichier
         }
         catch (Exception)
         {
-            // PE corrompu ou tronqué : aucun indicateur, et surtout aucune exception
-            return new List<Indicator>();
+            // En-tête MZ mais structure PE invalide ou tronquée : échec sécurisé. Un tel fichier ne peut pas être
+            // analysé, ce qui est en soi une technique d'évasion ; il n'est donc pas déclaré « sain » par défaut.
+            return [new Indicator(Name,
+                "En-tête MZ mais structure PE invalide ou tronquée : analyse impossible (évasion possible)", PointsPeMalforme)];
         }
 
         return indicators;

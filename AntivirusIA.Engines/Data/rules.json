@@ -1,0 +1,219 @@
+{
+    "version":  1,
+    "rules":  [
+                  {
+                      "name":  "EICAR-Test-File",
+                      "description":  "fichier de test antivirus standard EICAR (inoffensif)",
+                      "score":  100,
+                      "definitive":  true,
+                      "condition":  "all",
+                      "strings":  [
+                                      {
+                                          "hex":  "45 49 43 41 52 2D 53 54 41 4E 44 41 52 44 2D 41 4E 54 49 56 49 52 55 53 2D 54 45 53 54 2D 46 49 4C 45"
+                                      },
+                                      {
+                                          "hex":  "24 48 2B 48 2A"
+                                      }
+                                  ]
+                  },
+                  {
+                      "name":  "HackTool-Mimikatz",
+                      "description":  "outil de vol d\u0027identifiants Mimikatz (modules sekurlsa / lsadump)",
+                      "score":  100,
+                      "definitive":  true,
+                      "condition":  "2",
+                      "strings":  [
+                                      {
+                                          "hex":  "73 65 6B 75 72 6C 73 61 3A 3A",
+                                          "noCase":  true
+                                      },
+                                      {
+                                          "hex":  "73 00 65 00 6B 00 75 00 72 00 6C 00 73 00 61 00 3A 00 3A 00",
+                                          "noCase":  true
+                                      },
+                                      {
+                                          "hex":  "6C 73 61 64 75 6D 70 3A 3A",
+                                          "noCase":  true
+                                      },
+                                      {
+                                          "hex":  "6C 00 73 00 61 00 64 00 75 00 6D 00 70 00 3A 00 3A 00",
+                                          "noCase":  true
+                                      },
+                                      {
+                                          "hex":  "67 65 6E 74 69 6C 6B 69 77 69",
+                                          "noCase":  true
+                                      },
+                                      {
+                                          "hex":  "67 00 65 00 6E 00 74 00 69 00 6C 00 6B 00 69 00 77 00 69 00",
+                                          "noCase":  true
+                                      }
+                                  ]
+                  },
+                  {
+                      "name":  "Script-AmsiBypass",
+                      "description":  "tentative de désactivation de l\u0027AMSI (contournement de l\u0027analyse des scripts)",
+                      "score":  70,
+                      "definitive":  false,
+                      "condition":  "any",
+                      "strings":  [
+                                      {
+                                          "hex":  "61 6D 73 69 49 6E 69 74 46 61 69 6C 65 64",
+                                          "noCase":  true
+                                      },
+                                      {
+                                          "hex":  "61 00 6D 00 73 00 69 00 49 00 6E 00 69 00 74 00 46 00 61 00 69 00 6C 00 65 00 64 00",
+                                          "noCase":  true
+                                      },
+                                      {
+                                          "hex":  "41 6D 73 69 53 63 61 6E 42 75 66 66 65 72 20 70 61 74 63 68",
+                                          "noCase":  true
+                                      }
+                                  ]
+                  },
+                  {
+                      "name":  "Ransom-ShadowCopyDelete",
+                      "description":  "suppression des clichés instantanés / sauvegardes (préparation typique d\u0027un ransomware)",
+                      "score":  60,
+                      "definitive":  false,
+                      "condition":  "2",
+                      "strings":  [
+                                      {
+                                          "hex":  "76 73 73 61 64 6D 69 6E",
+                                          "noCase":  true
+                                      },
+                                      {
+                                          "hex":  "64 65 6C 65 74 65 20 73 68 61 64 6F 77 73",
+                                          "noCase":  true
+                                      },
+                                      {
+                                          "hex":  "73 68 61 64 6F 77 63 6F 70 79 20 64 65 6C 65 74 65",
+                                          "noCase":  true
+                                      },
+                                      {
+                                          "hex":  "77 62 61 64 6D 69 6E 20 64 65 6C 65 74 65 20 63 61 74 61 6C 6F 67",
+                                          "noCase":  true
+                                      },
+                                      {
+                                          "hex":  "72 65 63 6F 76 65 72 79 65 6E 61 62 6C 65 64 20 6E 6F",
+                                          "noCase":  true
+                                      },
+                                      {
+                                          "hex":  "64 00 65 00 6C 00 65 00 74 00 65 00 20 00 73 00 68 00 61 00 64 00 6F 00 77 00 73 00",
+                                          "noCase":  true
+                                      }
+                                  ]
+                  },
+                  {
+                      "name":  "Ransom-Note",
+                      "description":  "texte caractéristique d\u0027une demande de rançon",
+                      "score":  45,
+                      "definitive":  false,
+                      "condition":  "3",
+                      "strings":  [
+                                      {
+                                          "text":  "your files have been encrypted",
+                                          "noCase":  true
+                                      },
+                                      {
+                                          "text":  "files are encrypted",
+                                          "noCase":  true
+                                      },
+                                      {
+                                          "text":  "bitcoin",
+                                          "noCase":  true
+                                      },
+                                      {
+                                          "text":  "decrypt",
+                                          "noCase":  true
+                                      },
+                                      {
+                                          "text":  ".onion",
+                                          "noCase":  true
+                                      },
+                                      {
+                                          "text":  "vos fichiers ont",
+                                          "noCase":  true
+                                      }
+                                  ]
+                  },
+                  {
+                      "name":  "Script-DownloadCradle",
+                      "description":  "script PowerShell qui télécharge et exécute du code en mémoire",
+                      "score":  40,
+                      "definitive":  false,
+                      "condition":  "3",
+                      "strings":  [
+                                      {
+                                          "hex":  "64 6F 77 6E 6C 6F 61 64 73 74 72 69 6E 67 28",
+                                          "noCase":  true
+                                      },
+                                      {
+                                          "hex":  "6E 65 74 2E 77 65 62 63 6C 69 65 6E 74",
+                                          "noCase":  true
+                                      },
+                                      {
+                                          "hex":  "66 72 6F 6D 62 61 73 65 36 34 73 74 72 69 6E 67 28",
+                                          "noCase":  true
+                                      },
+                                      {
+                                          "hex":  "2D 65 6E 63 6F 64 65 64 63 6F 6D 6D 61 6E 64",
+                                          "noCase":  true
+                                      },
+                                      {
+                                          "hex":  "69 6E 76 6F 6B 65 2D 65 78 70 72 65 73 73 69 6F 6E",
+                                          "noCase":  true
+                                      },
+                                      {
+                                          "hex":  "69 65 78 28",
+                                          "noCase":  true
+                                      },
+                                      {
+                                          "hex":  "64 6F 77 6E 6C 6F 61 64 64 61 74 61 28",
+                                          "noCase":  true
+                                      }
+                                  ]
+                  },
+                  {
+                      "name":  "Stealer-BrowserCredentials",
+                      "description":  "accès aux mots de passe enregistrés des navigateurs (comportement d\u0027infostealer)",
+                      "score":  40,
+                      "definitive":  false,
+                      "condition":  "3",
+                      "strings":  [
+                                      {
+                                          "hex":  "5C 4C 6F 67 69 6E 20 44 61 74 61"
+                                      },
+                                      {
+                                          "hex":  "5C 00 4C 00 6F 00 67 00 69 00 6E 00 20 00 44 00 61 00 74 00 61 00"
+                                      },
+                                      {
+                                          "hex":  "65 6E 63 72 79 70 74 65 64 5F 6B 65 79"
+                                      },
+                                      {
+                                          "hex":  "5C 4C 6F 63 61 6C 20 53 74 61 74 65"
+                                      },
+                                      {
+                                          "hex":  "5C 00 4C 00 6F 00 63 00 61 00 6C 00 20 00 53 00 74 00 61 00 74 00 65 00"
+                                      },
+                                      {
+                                          "hex":  "43 72 79 70 74 55 6E 70 72 6F 74 65 63 74 44 61 74 61"
+                                      },
+                                      {
+                                          "hex":  "6C 6F 67 69 6E 73 2E 6A 73 6F 6E"
+                                      }
+                                  ]
+                  },
+                  {
+                      "name":  "Loader-ReflectiveDll",
+                      "description":  "chargeur de DLL réflectif (injection de code en mémoire)",
+                      "score":  35,
+                      "definitive":  false,
+                      "condition":  "any",
+                      "strings":  [
+                                      {
+                                          "hex":  "52 65 66 6C 65 63 74 69 76 65 4C 6F 61 64 65 72"
+                                      }
+                                  ]
+                  }
+              ]
+}

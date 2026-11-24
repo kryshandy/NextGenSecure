@@ -197,7 +197,11 @@ public sealed class ScanService
     private static string LocalExplanation(ScanResult result)
     {
         string top = string.Join(" ; ", result.Indicators.OrderByDescending(i => i.Points).Take(3).Select(i => i.Description));
-        return $"Verdict établi par les moteurs locaux (score {result.Score}/100). Indices principaux : {top}.";
+        string trust = result.Trust?.IsTrusted == true
+            ? $" Fichier signé numériquement{(result.Trust.Publisher is { } p ? $" par {p}" : "")} : heuristiques atténuées."
+            : "";
+        string partial = result.Incomplete ? " Analyse partielle (un moteur n'a pas pu lire ou traiter le fichier)." : "";
+        return $"Verdict établi par les moteurs locaux (score {result.Score}/100). Indices principaux : {top}.{trust}{partial}";
     }
 
     private static List<string> Enumerate(string path)

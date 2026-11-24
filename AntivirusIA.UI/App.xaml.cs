@@ -66,11 +66,17 @@ public partial class App : Application
         services.AddSingleton<ActivityStats>();
 
         // Moteurs de détection (tous exposés comme IDetectionEngine, consommés par ScanPipeline)
-        string signatures = Path.Combine(AppContext.BaseDirectory, "Data", "signatures.json");
-        services.AddSingleton<IDetectionEngine>(_ => new SignatureEngine(signatures));
+        // Signatures : base livrée + bases additionnelles déposées par l'utilisateur (listes SHA-256 .txt/.json)
+        string data = Path.Combine(AppContext.BaseDirectory, "Data");
+        string userSignatures = Path.Combine(dataDir, "signatures");
+        Directory.CreateDirectory(userSignatures);
+        services.AddSingleton<IDetectionEngine>(_ => new SignatureEngine(
+            [Path.Combine(data, "signatures.json"), Path.Combine(data, "signatures"), userSignatures]));
+        services.AddSingleton<IDetectionEngine>(_ => new PatternRuleEngine(Path.Combine(data, "rules.json")));
         services.AddSingleton<IDetectionEngine, HeuristicEngine>();
         services.AddSingleton<IDetectionEngine, EntropyAnalyzer>();
         services.AddSingleton<IDetectionEngine, PeStaticEngine>();
+        services.AddSingleton<IFileTrustProvider, AuthenticodeVerifier>();
         services.AddSingleton(new ScoringService
         {
             SeuilSuspect = settings.ThresholdSuspect,
