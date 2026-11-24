@@ -1,0 +1,196 @@
+<UserControl x:Class="AntivirusIA.UI.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <!-- Libellé de ligne de réglage -->
+        <Style x:Key="RowLabel" TargetType="TextBlock" BasedOn="{StaticResource Text.Body}">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <Grid Style="{StaticResource Page.Root}" Margin="32,8,32,32" MaxWidth="900" HorizontalAlignment="Left">
+            <StackPanel>
+                <StackPanel Margin="0,0,0,24">
+                    <TextBlock Text="Réglages" Style="{StaticResource Text.Title}"/>
+                    <TextBlock Text="Seuils de détection, modules de protection et modèle d'IA." Style="{StaticResource Text.Muted}" Margin="0,4,0,0"/>
+                </StackPanel>
+
+                <!-- Apparence -->
+                <Border Style="{StaticResource Card}" Margin="0,0,0,16">
+                    <Grid DataContext="{Binding Settings}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Thème sombre" Style="{StaticResource RowLabel}"/>
+                            <TextBlock Text="Désactivez pour passer au thème clair (appliqué immédiatement)." Style="{StaticResource Text.Caption}"/>
+                        </StackPanel>
+                        <CheckBox Grid.Column="1" Style="{StaticResource Switch}" IsChecked="{Binding DarkTheme}" AutomationProperties.Name="Thème sombre"/>
+                    </Grid>
+                </Border>
+
+                <!-- Seuils -->
+                <Border Style="{StaticResource Card}" Margin="0,0,0,16">
+                    <StackPanel DataContext="{Binding Settings}">
+                        <Grid Margin="0,0,0,16">
+                            <TextBlock Text="Seuils de score" Style="{StaticResource Text.Heading}" VerticalAlignment="Center"/>
+                            <Button Content="Valeurs par défaut" Style="{StaticResource Btn.Ghost}" Padding="10,5" HorizontalAlignment="Right"
+                                    Command="{Binding DataContext.ResetThresholdsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="200"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="56"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Suspect à partir de" Style="{StaticResource RowLabel}"/>
+                                <TextBlock Text="Score minimal pour un fichier suspect" Style="{StaticResource Text.Caption}"/>
+                            </StackPanel>
+                            <Slider Grid.Column="1" Minimum="1" Maximum="99" Value="{Binding ThresholdSuspect}" IsSnapToTickEnabled="True" TickFrequency="1"
+                                    AutomationProperties.Name="Seuil suspect"/>
+                            <TextBlock Grid.Column="2" Text="{Binding ThresholdSuspect}" Style="{StaticResource Text.Heading}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                        </Grid>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="200"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="56"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Malveillant à partir de" Style="{StaticResource RowLabel}"/>
+                                <TextBlock Text="Score minimal pour un fichier malveillant" Style="{StaticResource Text.Caption}"/>
+                            </StackPanel>
+                            <Slider Grid.Column="1" Minimum="2" Maximum="100" Value="{Binding ThresholdMalicious}" IsSnapToTickEnabled="True" TickFrequency="1"
+                                    AutomationProperties.Name="Seuil malveillant"/>
+                            <TextBlock Grid.Column="2" Text="{Binding ThresholdMalicious}" Style="{StaticResource Text.Heading}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Analyse et IA -->
+                <Border Style="{StaticResource Card}" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Analyse et IA locale" Style="{StaticResource Text.Heading}" Margin="0,0,0,16"/>
+
+                        <Grid Margin="0,0,0,16" DataContext="{Binding Settings}">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Quarantaine automatique" Style="{StaticResource RowLabel}"/>
+                                <TextBlock Text="Isole immédiatement les fichiers jugés malveillants." Style="{StaticResource Text.Caption}"/>
+                            </StackPanel>
+                            <CheckBox Grid.Column="1" Style="{StaticResource Switch}" IsChecked="{Binding AutoQuarantine}" AutomationProperties.Name="Quarantaine automatique"/>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,16" DataContext="{Binding Settings}">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Explication par l'IA" Style="{StaticResource RowLabel}"/>
+                                <TextBlock Text="Demande une explication au modèle local pour les fichiers douteux." Style="{StaticResource Text.Caption}"/>
+                            </StackPanel>
+                            <CheckBox Grid.Column="1" Style="{StaticResource Switch}" IsChecked="{Binding UseAi}" AutomationProperties.Name="Explication par l'IA"/>
+                        </Grid>
+
+                        <TextBlock Text="Chemin du modèle (GGUF)" Style="{StaticResource RowLabel}" Margin="0,0,0,8"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <TextBox Text="{Binding Settings.ModelPath, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Chemin du modèle"/>
+                            <Button Grid.Column="1" Content="Parcourir" Style="{StaticResource Btn.Secondary}" Margin="8,0,0,0" Command="{Binding BrowseModelCommand}"/>
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                            <Ellipse Width="10" Height="10" VerticalAlignment="Center" Margin="0,0,8,0">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill" Value="{DynamicResource WarnBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ModelFound}" Value="True">
+                                                <Setter Property="Fill" Value="{DynamicResource SuccessBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                            <TextBlock Text="{Binding ModelStatus}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock Text="{Binding ResolvedModelPath}" Style="{StaticResource Text.Caption}" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Style="{StaticResource Text.Caption}" Margin="0,8,0,0"
+                                   Text="Chemin relatif : résolu depuis le répertoire courant. Lancez l'application avec « dotnet run --project AntivirusIA.UI » depuis la racine du dépôt, ou saisissez un chemin absolu."/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Modules -->
+                <Border Style="{StaticResource Card}" Margin="0,0,0,16">
+                    <StackPanel DataContext="{Binding Settings}">
+                        <TextBlock Text="Modules de protection" Style="{StaticResource Text.Heading}" Margin="0,0,0,16"/>
+
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Surveillance des téléchargements" Style="{StaticResource RowLabel}"/>
+                                <TextBlock Text="Analyse automatiquement chaque nouveau fichier du dossier Téléchargements." Style="{StaticResource Text.Caption}"/>
+                            </StackPanel>
+                            <CheckBox Grid.Column="1" Style="{StaticResource Switch}" IsChecked="{Binding MonitorDownloads}" AutomationProperties.Name="Surveillance des téléchargements"/>
+                        </Grid>
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Fichiers leurres (canaris)" Style="{StaticResource RowLabel}"/>
+                                <TextBlock Text="Dépose des faux documents dans Documents, Bureau et Images pour piéger un ransomware. Retirés à la fermeture." Style="{StaticResource Text.Caption}"/>
+                            </StackPanel>
+                            <CheckBox Grid.Column="1" Style="{StaticResource Switch}" IsChecked="{Binding CanariesEnabled}" AutomationProperties.Name="Fichiers leurres"/>
+                        </Grid>
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Comportement des processus (ETW)" Style="{StaticResource RowLabel}"/>
+                                <TextBlock Text="Nécessite les droits administrateur." Style="{StaticResource Text.Caption}"/>
+                            </StackPanel>
+                            <CheckBox Grid.Column="1" Style="{StaticResource Switch}" IsChecked="{Binding BehaviorEnabled}" AutomationProperties.Name="Comportement des processus"/>
+                        </Grid>
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Persistance" Style="{StaticResource RowLabel}"/>
+                                <TextBlock Text="Surveille les clés Run, les tâches planifiées et les services." Style="{StaticResource Text.Caption}"/>
+                            </StackPanel>
+                            <CheckBox Grid.Column="1" Style="{StaticResource Switch}" IsChecked="{Binding PersistenceEnabled}" AutomationProperties.Name="Persistance"/>
+                        </Grid>
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Garde du presse-papiers" Style="{StaticResource RowLabel}"/>
+                                <TextBlock Text="Détecte le remplacement d'adresses crypto et efface les secrets copiés." Style="{StaticResource Text.Caption}"/>
+                            </StackPanel>
+                            <CheckBox Grid.Column="1" Style="{StaticResource Switch}" IsChecked="{Binding ClipboardEnabled}" AutomationProperties.Name="Garde du presse-papiers"/>
+                        </Grid>
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Webcam et microphone" Style="{StaticResource RowLabel}"/>
+                                <TextBlock Text="Alerte quand une application utilise un capteur." Style="{StaticResource Text.Caption}"/>
+                            </StackPanel>
+                            <CheckBox Grid.Column="1" Style="{StaticResource Switch}" IsChecked="{Binding SensorsEnabled}" AutomationProperties.Name="Webcam et microphone"/>
+                        </Grid>
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Mode paranoïa" Style="{StaticResource RowLabel}"/>
+                                <TextBlock Text="Politique de durcissement renforcée (USB, pare-feu, exécution depuis les dossiers utilisateur)." Style="{StaticResource Text.Caption}"/>
+                            </StackPanel>
+                            <CheckBox Grid.Column="1" Style="{StaticResource Switch}" IsChecked="{Binding ParanoiaEnabled}" AutomationProperties.Name="Mode paranoïa"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="Enregistrer et appliquer" Command="{Binding ApplyCommand}"/>
+                    <TextBlock Text="{Binding SavedMessage}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="16,0,0,0"/>
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

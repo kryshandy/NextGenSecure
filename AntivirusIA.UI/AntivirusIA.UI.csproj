@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>AntivirusIA.UI</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,6 +15,16 @@
     <ProjectReference Include="..\AntivirusIA.Core\AntivirusIA.Core.csproj" />
     <ProjectReference Include="..\AntivirusIA.Engines\AntivirusIA.Engines.csproj" />
     <ProjectReference Include="..\AntivirusIA.Infrastructure\AntivirusIA.Infrastructure.csproj" />
+    <ProjectReference Include="..\CoreGuard.RealTime\CoreGuard.RealTime.csproj" />
+    <ProjectReference Include="..\CoreGuard.Behavior\CoreGuard.Behavior.csproj" />
+    <ProjectReference Include="..\CoreGuard.Network\CoreGuard.Network.csproj" />
+    <ProjectReference Include="..\CoreGuard.Privacy\CoreGuard.Privacy.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="System.IO" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0" />
   </ItemGroup>
 
 </Project>

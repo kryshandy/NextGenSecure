@@ -1,9 +1,23 @@
 ﻿<Application x:Class="AntivirusIA.UI.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:AntivirusIA.UI"
-             StartupUri="MainWindow.xaml">
+             xmlns:conv="clr-namespace:AntivirusIA.UI.Converters"
+             ShutdownMode="OnMainWindowClose">
+    <!-- Pas de StartupUri : la MainWindow est résolue via le conteneur DI dans App.OnStartup -->
     <Application.Resources>
-         
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- Indice 0 : palette (échangée à chaud par ThemeService) -->
+                <ResourceDictionary Source="Themes/Dark.xaml"/>
+                <ResourceDictionary Source="Themes/Icons.xaml"/>
+                <ResourceDictionary Source="Themes/Styles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+            <conv:InverseBoolToVisibilityConverter x:Key="InvBoolToVis"/>
+            <conv:ZeroToVisibleConverter x:Key="ZeroToVis"/>
+            <conv:StringToVisibilityConverter x:Key="StringToVis"/>
+            <conv:InverseBoolConverter x:Key="InvBool"/>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>
