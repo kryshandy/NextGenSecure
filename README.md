@@ -43,6 +43,7 @@ CoreGuard.sln
 ├─ CoreGuard.RealTime         Temps réel : FileSystemWatcher, canaris anti-ransomware
 ├─ CoreGuard.Behavior         Comportement : ETW, client AMSI, gardien de persistance
 ├─ CoreGuard.Network          Pare-feu Windows (COM), énumération ports, kill switch réseau — WFP natif prévu
+├─ CoreGuard.Response         Actions de réponse user-mode (IKernelActionProvider) : arrêt, suspension, ACL, DACL
 ├─ CoreGuard.Vault            Coffre-fort mots de passe (SQLite + Argon2id + AES-GCM)
 ├─ CoreGuard.Privacy          Privacy Guard (caméra/micro), presse-papiers, Mode Paranoïa
 ├─ AntivirusIA.UI             Interface WPF (MVVM) — dashboard temps réel
@@ -70,11 +71,13 @@ CoreGuard.sln
 - ⏳ **IA niveau 1** — classifieur statique ONNX (type EMBER), scoring < 50 ms
 
 **Réaction / protection**
-- ✅ Quarantaine **AES-256-GCM** authentifiée, clé protégée par **DPAPI**, restauration refusée si le fichier est altéré
+- ✅ Quarantaine **AES-256-GCM** authentifiée, clé protégée par **DPAPI**, droits NTFS restreints (exécution refusée), restauration refusée si le fichier est altéré
+- ✅ **Arrêt immédiat** des commandes de suppression des clichés instantanés (`vssadmin`, `wmic`, `diskshadow`) repérées par ETW, via `IKernelActionProvider` (garde-fous : jamais de processus critique de Windows)
 - 🟡 Anti-ransomware par **canaris** + restauration immédiate (l'arrêt du processus est encore simulé)
 - 🟡 **Gardien de persistance** (Run/RunOnce, tâches planifiées, services 7045) — détection sans pop-up de blocage
 - 🟡 Pare-feu : règles par application et **kill switch** via le pare-feu Windows ; WFP natif prévu
-- ⏳ Auto-défense (watchdog, ACL de processus, arrêt protégé par HMAC), scan mémoire, moniteur BadUSB, anti-infostealer
+- 🟡 Auto-défense : durcissement de la DACL du processus disponible (non activé au démarrage) ; watchdog et arrêt protégé par HMAC prévus
+- ⏳ Scan mémoire, moniteur BadUSB, anti-infostealer
 
 **Modules utilisateur**
 - ✅ **Presse-papiers intelligent** (anti-crypto-clipper, vidage des secrets après 30 s)
@@ -119,7 +122,7 @@ dotnet run --project AntivirusIA.UI
 dotnet test AntivirusIA.slnx
 ```
 
-228 tests MSTest (moteurs, quarantaine, règles, comportement, réseau, vie privée, coffre, extension). Procédure de test manuelle : [`docs/TESTING.md`](docs/TESTING.md).
+238 tests MSTest (moteurs, quarantaine, règles, comportement, réseau, réponse, vie privée, coffre, extension). Procédure de test manuelle : [`docs/TESTING.md`](docs/TESTING.md).
 
 ---
 

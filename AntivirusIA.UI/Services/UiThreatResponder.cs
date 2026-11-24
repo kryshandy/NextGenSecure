@@ -5,10 +5,12 @@ using CoreGuard.RealTime;
 namespace AntivirusIA.UI.Services;
 
 /// <summary>
-/// Réaction aux menaces temps réel : publie dans le flux d'alertes.
-/// Les actions destructives (kill) restent volontairement SIMULÉES : le PID suspect n'est qu'une heuristique.
+/// Réaction aux menaces temps réel : publie dans le flux d'alertes et exécute les actions via
+/// <see cref="IKernelActionProvider"/> (mode utilisateur aujourd'hui, driver plus tard).
+/// Canaris : le PID suspect n'est qu'une estimation (pas d'attribution fiable sans driver) ;
+/// il est donc signalé, jamais arrêté automatiquement.
 /// </summary>
-public sealed class UiThreatResponder(AlertHub alerts, IQuarantineService quarantine) : IThreatResponder
+public sealed class UiThreatResponder(AlertHub alerts, IQuarantineService quarantine, IKernelActionProvider actions) : IThreatResponder
 {
     public Task OnCanaryTriggeredAsync(CanaryAlert alert, CancellationToken ct)
     {
@@ -18,10 +20,15 @@ public sealed class UiThreatResponder(AlertHub alerts, IQuarantineService quaran
         return Task.CompletedTask;
     }
 
-    public Task KillProcessAsync(int pid)
+    public Task KillProcessAsync(int pid) => TerminateAsync(pid, "menace détectée");
+
+    /// <summary>Arrête un processus et publie le résultat (succès ou refus) dans le flux d'alertes.</summary>
+    public async Task<ActionResult> TerminateAsync(int pid, string reason, CancellationToken ct = default)
     {
-        alerts.Publish(AlertSeverity.Warning, "Réponse", "Arrêt de processus simulé", $"PID {pid} (aucune action réelle)");
-        return Task.CompletedTask;
+        ActionResult result = await actions.TerminateProcessAsync(pid, reason, ct).ConfigureAwait(false);
+        alerts.Publish(result.Success ? AlertSeverity.Critical : AlertSeverity.Warning, "Réponse",
+            result.Success ? "Processus arrêté" : "Arrêt impossible", result.Message);
+        return result;
     }
 
     public async Task QuarantineAsync(string path, string reason)

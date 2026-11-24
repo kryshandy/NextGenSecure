@@ -9,13 +9,14 @@ Chaque module est un projet isolé qui ne référence que `AntivirusIA.Core`. Le
 | `AntivirusIA.Core` | Contrats (`IDetectionEngine`, `IFileTrustProvider`, `IQuarantineService`…), modèles, pipeline de scan, scoring | Complet |
 | `AntivirusIA.Engines` | Signatures multi-sources, règles de contenu (`rules.json`), heuristiques, entropie, PE statique, Authenticode | Complet |
 | `AntivirusIA.AI` | LLM local (LLamaSharp) pour l'explication ; classifieur ONNX EMBER prévu | Partiel |
-| `AntivirusIA.Infrastructure` | Quarantaine AES-256-GCM (clé DPAPI), historique SQLite | Complet (ACL NTFS prévues) |
+| `AntivirusIA.Infrastructure` | Quarantaine AES-256-GCM (clé DPAPI, ACL NTFS), historique SQLite | Complet |
 | `CoreGuard.RealTime` | Surveillance de dossiers (`FileSystemWatcher`), canaris anti-ransomware | Partiel (arrêt du processus simulé) |
-| `CoreGuard.Behavior` | ETW processus, règles comportementales, client AMSI, gardien de persistance | Partiel (détection sans blocage) |
+| `CoreGuard.Behavior` | ETW processus, règles comportementales, client AMSI, gardien de persistance | Partiel (suppression des clichés arrêtée, autres règles en alerte) |
 | `CoreGuard.Network` | Pare-feu Windows (COM), ports, kill switch ; WFP natif prévu | Partiel |
+| `CoreGuard.Response` | `UserModeActionProvider` : implémentation user-mode de `IKernelActionProvider` (arrêt, suspension, blocage réseau, ACL NTFS, DACL de processus) | Complet (étape 1) |
 | `CoreGuard.Vault` | Coffre-fort (SQLite, Argon2id, AES-256-GCM) | Complet côté crypto, non branché à l'UI |
 | `CoreGuard.Privacy` | Privacy Guard (caméra/micro), presse-papiers intelligent, Mode Paranoïa | Partiel (Paranoïa sans action réelle) |
 | `AntivirusIA.UI` | Interface WPF (MVVM) et composition root (DI) ; héberge aujourd'hui les modules temps réel | Partiel |
 | `CoreGuard.Extension` | Extension MV3, hôte Native Messaging, OCR anti-phishing, QR | Partiel (hôte à enregistrer à la main) |
 | `CoreGuard.Service` | Worker Service `SYSTEM`, IPC named pipe, auto-défense | Prévu |
-| Tests (`*.Tests`) | 228 tests MSTest | Complet pour l'existant |
+| Tests (`*.Tests`) | 238 tests MSTest | Complet pour l'existant |

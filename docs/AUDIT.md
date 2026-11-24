@@ -1,14 +1,14 @@
 # Audit CoreGuard — alignement sur l'architecture consolidée
 
-*Audit du 24/11/2026, commit `c0e9def` (branche `main`). Toutes les affirmations ci-dessous viennent d'une lecture du code et d'une exécution de `dotnet build` / `dotnet test`.*
+*Audit du 24/11/2026 (commit `c0e9def`), mis à jour le 25/11/2026 après l'étape 1 du plan. Toutes les affirmations ci-dessous viennent d'une lecture du code et d'une exécution de `dotnet build` / `dotnet test`.*
 
 ## Synthèse
 
 | Point | Constat |
 |---|---|
 | Compilation | `dotnet build AntivirusIA.slnx` : **0 erreur, 0 avertissement** (18 projets). |
-| Tests | `dotnet test` : **228 tests verts** (84 socle + 57 Behavior + 38 Extension + 24 Privacy + 11 Vault + 10 Network + 4 RealTime). |
-| Ring 0 | Aucun code ne référence de driver : rien ne bloque sans `CoreGuard.Driver`. **Mais l'abstraction `IKernelActionProvider` / `UserModeActionProvider` n'existe pas encore.** |
+| Tests | `dotnet test` : **238 tests verts** (84 socle + 57 Behavior + 38 Extension + 24 Privacy + 11 Vault + 10 Network + 10 Response + 4 RealTime). |
+| Ring 0 | Aucun code ne référence de driver : rien ne bloque sans `CoreGuard.Driver`. L'abstraction **`IKernelActionProvider`** (Core) est en place, avec **`UserModeActionProvider`** (CoreGuard.Response) câblé par défaut. |
 | Composants | **UI** et **Extension** existent. **`CoreGuard.Service` (Worker Service SYSTEM) n'existe pas** : tous les modules tournent aujourd'hui dans le processus WPF, sous le compte utilisateur. |
 | Framework | Le code cible **.NET 10** (LTS), pas .NET 8/9. Aucune raison de redescendre : .NET 10 est la LTS actuelle et toutes les dépendances le supportent. |
 | Démos | 7 spécimens sur 10. **Aucun des 10 scénarios n'est démontrable de bout en bout aujourd'hui avec blocage réel** (voir §5). |
@@ -26,13 +26,13 @@ Légende des états : **Complet** (fait ce que la spec demande) · **Partiel** (
 | 2 | IA niveau 1 (EMBER / ONNX) | — | **Absent** | Pas de package `Microsoft.ML.OnnxRuntime`, pas de modèle, pas d'extraction de features EMBER. Le README l'annonçait à tort. |
 | 3 | IA niveau 2 (LLM explication) | `AntivirusIA.AI/*` | **Complet** | LLamaSharp + Llama 3.2 3B GGUF, repli local si modèle absent, ne décide jamais. Désobfuscation de scripts non câblée (prompt d'explication seulement). |
 | 4 | AMSI | `CoreGuard.Behavior/AmsiScanner.cs` | **Squelette** | C'est un **client** AMSI (`AmsiScanBuffer` → demande l'avis de Defender). Il n'**intercepte** rien : intercepter PowerShell exige un **fournisseur AMSI** (DLL COM `IAntimalwareProvider` enregistrée). Non utilisé par l'UI. |
-| 5 | ETW comportemental | `EtwProcessMonitor.cs`, `BehaviorRuleEngine.cs` | **Partiel** | Règles Office→shell (+ Base64), `vssadmin`/`wmic`/`diskshadow`/WMI, persistance par ligne de commande : OK et testées. **Aucun `TerminateProcess`** : alerte seulement. Exige l'admin. |
+| 5 | ETW comportemental | `EtwProcessMonitor.cs`, `BehaviorRuleEngine.cs` | **Partiel** | Règles Office→shell (+ Base64), `vssadmin`/`wmic`/`diskshadow`/WMI, persistance par ligne de commande : OK et testées. La suppression des clichés est **arrêtée par `TerminateProcess`** (PID exact fourni par ETW) ; les autres règles alertent seulement. Exige l'admin ; l'arrêt suit le démarrage (une commande très rapide peut avoir agi avant). |
 | 6 | Pare-feu WFP | `CoreGuard.Network/WindowsFirewall.cs` | **Partiel** | Passe par le **pare-feu COM** (`INetFwPolicy2`, règles par chemin), **pas par WFP** (`FwpmFilterAdd0`). Pas de blocage par PID. Kill switch implémenté mais non exposé dans l'UI. |
-| 7 | Quarantaine chiffrée | `AntivirusIA.Infrastructure/QuarantineService.cs` | **Partiel** | AES-256-GCM authentifié + clé DPAPI : OK. **Révocation des droits NTFS absente** ; dossier sous `%LocalAppData%` (accessible au même utilisateur). |
+| 7 | Quarantaine chiffrée | `AntivirusIA.Infrastructure/QuarantineService.cs` | **Partiel** | AES-256-GCM authentifié + clé DPAPI + **droits NTFS restreints** sur chaque `.quar` (héritage coupé, exécution refusée à tous). Dossier sous `%LocalAppData%` (accessible au même utilisateur tant que le service n'existe pas). |
 | 8 | Anti-ransomware canaris | `CoreGuard.RealTime/CanaryManager.cs`, `PidResolver.cs` | **Partiel + Bug** | Déploiement, surveillance, restauration depuis copie AES en mémoire : OK. Écarts : fichiers **non cachés**, noms différents de la spec (`_zz_backup.xlsx`, `~000_archive.docx`…), **arrêt du processus simulé** (`UiThreatResponder.KillProcessAsync`), PID coupable deviné (« dernier processus lancé »). **Bug démo** : le spécimen 02 écrit dans `%TEMP%\CoreGuardDemo`, que le `CanaryManager` ne surveille pas (il surveille Documents/Bureau/Images). |
 | 9 | Scan mémoire (fileless) | — | **Absent** | Aucun `VirtualQueryEx` / `ReadProcessMemory`. |
 | 10 | Moniteur BadUSB | — | **Absent** | Aucun `Win32_DeviceChangeEvent`, aucune analyse de cadence. Le spécimen `04-badusb-hid` existe mais rien ne le détecte. |
-| 11 | Auto-défense (watchdog, ACL, HMAC) | — | **Absent** | Pas de watchdog, pas de `SetKernelObjectSecurity`, pas d'arrêt protégé par mot de passe. |
+| 11 | Auto-défense (watchdog, ACL, HMAC) | `CoreGuard.Response/UserModeActionProvider.cs` | **Partiel** | Durcissement de la DACL de processus disponible (`ProtectSelfAsync`, testé : un tiers ne peut plus arrêter le processus) mais **pas encore activé au démarrage** ; pas de watchdog, pas d'arrêt protégé par mot de passe. |
 | 12 | Vault | `CoreGuard.Vault/Vault.cs` | **Partiel** | Argon2id + AES-256-GCM + SQLite : solide et testé. **Pas d'ACL NTFS**, **pas branché à l'UI**, l'hôte Native Messaging utilise `NullCredentialProvider` (l'auto-fill ne renvoie jamais rien). |
 | 13 | Anti-infostealer navigateur | — | **Absent** | Ni ACL sur `Login Data` / `Local State` / `Cookies`, ni audit des lectures. Seule la règle de contenu `Stealer-BrowserCredentials` (statique) existe. |
 | 14 | Anti-phishing visuel | `CoreGuard.Extension/*` | **Partiel** | Levenshtein, homographes, OCR Windows, QR (ZXing) : OK et testés. L'hôte n'est **pas enregistré** automatiquement (manifeste + clé de registre à créer, voir `INSTALL.txt`) et les verdicts ne remontent pas dans l'UI. |
@@ -57,27 +57,29 @@ Légende des états : **Complet** (fait ce que la spec demande) · **Partiel** (
 | `CoreGuard.Privacy` | ClipboardGuardian, ClipboardAnalysis, SensorMonitor, ParanoiaMode | Partiel (Paranoïa = squelette) |
 | `CoreGuard.Extension` | Program (hôte), HostRouter, NativeMessagingProtocol, OcrPhishingAnalyzer, PhishingLogic, QrCodeScanner, `extension/` (MV3) | Partiel (enregistrement de l'hôte et coffre non branchés) |
 | `AntivirusIA.UI` | App (composition root DI), 5 vues, ViewModels, Services (Scan, Protection, AlertHub, Settings, Theme…) | Partiel : fonctionnel ; refonte visuelle en cours |
+| `CoreGuard.Response` | UserModeActionProvider (arrêt, suspension, blocage réseau, ACL NTFS, DACL de processus), Native | Complet pour l'étape 1 |
 | `CoreGuard.Service` | — | **Absent** |
 | Tests (7 projets) | MSTest | Complet pour ce qui existe |
 
 ## 3. Découplage Ring 0
 
 - **Aucune dépendance au driver** : aucun projet ne référence `CoreGuard.Driver`, aucun appel `FilterConnectCommunicationPort`, aucun `DeviceIoControl`. Rien ne bloque ni ne plante en son absence.
-- **Ce qui manque** : l'abstraction demandée. Les actions de réponse sont aujourd'hui dispersées (`IThreatResponder` dans RealTime, `INetworkGuard` dans Network, quarantaine dans Core). À créer dans `AntivirusIA.Core` :
+- **Abstraction en place (étape 1)** : `AntivirusIA.Core/Interfaces/IKernelActionProvider.cs`, implémentée par `CoreGuard.Response/UserModeActionProvider.cs` et enregistrée dans la composition root (`App.xaml.cs`). Les modules (quarantaine, réponse aux menaces) ne connaissent que l'interface. Garde-fous : refus des PID ≤ 4, de CoreGuard lui-même, des processus critiques de Windows (liste + `IsProcessCritical`). Contrat :
 
 ```csharp
 public interface IKernelActionProvider
 {
     bool IsKernelBacked { get; }                         // false en user-mode
-    Task<bool> TerminateProcessAsync(int pid, string reason, CancellationToken ct = default);
-    Task<bool> SuspendProcessAsync(int pid, CancellationToken ct = default);
-    Task<bool> BlockNetworkAsync(int pid, string? imagePath, CancellationToken ct = default);
-    Task<bool> ProtectFileAsync(string path, CancellationToken ct = default);   // ACL / verrou
-    Task<bool> ProtectSelfAsync(CancellationToken ct = default);                 // ACL processus
+    Task<ActionResult> TerminateProcessAsync(int pid, string reason, CancellationToken ct = default);
+    Task<ActionResult> SuspendProcessAsync(int pid, CancellationToken ct = default);
+    Task<ActionResult> ResumeProcessAsync(int pid, CancellationToken ct = default);
+    Task<ActionResult> BlockNetworkAsync(int pid, string? imagePath, CancellationToken ct = default);
+    Task<ActionResult> ProtectFileAsync(string path, CancellationToken ct = default);   // ACL NTFS
+    Task<ActionResult> ProtectSelfAsync(CancellationToken ct = default);                 // DACL processus
 }
 ```
 
-  avec `UserModeActionProvider` (TerminateProcess, NtSuspendProcess, WFP, ACL NTFS, `SetKernelObjectSecurity`) enregistré par défaut, et un futur `DriverActionProvider` substituable dans la composition root sans toucher aux modules.
+  `UserModeActionProvider` s'appuie sur `TerminateProcess`, `NtSuspendProcess`/`NtResumeProcess`, le pare-feu (injecté), les ACL NTFS et `SetSecurityInfo` ; un futur `DriverActionProvider` se substitue dans la composition root sans toucher aux modules.
 
 ## 4. Dépendances NuGet
 
@@ -97,7 +99,7 @@ public interface IKernelActionProvider
 | # | Scénario | Spécimen | Détecté aujourd'hui ? | Bloqué ? | Ce qui manque |
 |---|---|---|---|---|---|
 | 1 | PowerShell AMSI | ✅ `01` | Partiel (règle ETW Office→shell / règle de contenu si le fichier est scanné) | ❌ | Fournisseur AMSI réel |
-| 2 | Ransomware VSS/Canari | ✅ `02` | ⚠️ VSS par ETW (admin) ; canaris **non touchés** par le spécimen (bug de dossier) | ❌ | Kill réel, spécimen aligné sur les dossiers surveillés |
+| 2 | Ransomware VSS/Canari | ✅ `02` | ⚠️ VSS par ETW (admin) ; canaris **non touchés** par le spécimen (bug de dossier) | 🟡 commande VSS arrêtée (le spécimen ne fait qu'un `echo`) | Kill sur canari, spécimen aligné sur les dossiers surveillés |
 | 3 | Anti-Kill Watchdog | ❌ | ❌ | ❌ | Service + watchdog + ACL + HMAC |
 | 4 | BadUSB HID | ✅ `04` | ❌ | ❌ | Moniteur HID + cadence |
 | 5 | Injection mémoire | ❌ | ❌ | ❌ | Scanner mémoire + spécimen bénin (auto-injection dans un processus de test) |
@@ -113,7 +115,7 @@ public interface IKernelActionProvider
 
 Chaque étape est livrable et testable seule ; l'ordre minimise les dépendances.
 
-1. **`IKernelActionProvider` + `UserModeActionProvider`** (Core + nouveau projet `CoreGuard.Response`) : TerminateProcess, Suspend, ACL fichier/processus. Remplace les « kill simulés ». *Débloque 2, 5, 7, 11.*
+1. ✅ **`IKernelActionProvider` + `UserModeActionProvider`** (Core + `CoreGuard.Response`) : arrêt, suspension, blocage réseau, ACL fichier, DACL processus ; arrêt réel des suppressions de clichés détectées par ETW ; ACL NTFS sur la quarantaine. *Fait le 25/11/2026.*
 2. **`CoreGuard.Service`** (Worker Service, `UseWindowsService`, compte SYSTEM) : déplacer ProtectionService et les moniteurs hors de l'UI ; **IPC par named pipe** avec ACL (UI ↔ service) ; l'UI devient un client. *Débloque ETW sans lancer l'UI en admin, et l'auto-défense.*
 3. **Auto-défense** : watchdog mutuel service ↔ watchdog, DACL du processus sans `PROCESS_TERMINATE` pour les utilisateurs, arrêt légitime via mot de passe UI → jeton HMAC vérifié par le service et le watchdog. *Scénario 3.*
 4. **Réponse ransomware** : kill réel du suspect sur canari + VSS ; corriger le spécimen 02 (écrire dans un dossier surveillé dédié `Documents\CoreGuardDemo`) ; canaris cachés et noms de la spec ; gérer `FileSystemWatcher.Error`. *Scénario 2.*

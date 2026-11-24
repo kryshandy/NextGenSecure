@@ -154,9 +154,17 @@ public sealed class ProtectionService : IDisposable
         Guard(Behavior, () =>
         {
             var monitor = new EtwProcessMonitor(new BehaviorRuleEngine());
-            monitor.AlertRaised += (_, a) => _alerts.Publish(
-                a.Severity >= 80 ? AlertSeverity.Critical : AlertSeverity.Warning,
-                "Comportement", a.Rule, a.Detail);
+            monitor.AlertRaised += (_, a) =>
+            {
+                _alerts.Publish(a.Severity >= 80 ? AlertSeverity.Critical : AlertSeverity.Warning,
+                    "Comportement", a.Rule, a.Detail);
+
+                // Suppression des clichés instantanés : PID exact fourni par ETW, arrêt immédiat
+                // (préparation typique d'un ransomware). En mode utilisateur, l'arrêt suit le démarrage :
+                // une commande très rapide peut avoir agi avant ; le driver permettra de la bloquer en amont.
+                if (a.Rule == BehaviorRuleEngine.RuleShadowDelete && a.Pid is int pid)
+                    _ = _responder.TerminateAsync(pid, "suppression des clichés instantanés (anti-ransomware)");
+            };
             if (monitor.Start()) { _etw = monitor; Set(Behavior, ModuleState.Active, "Surveillance ETW active"); }
             else { monitor.Dispose(); Set(Behavior, ModuleState.Unavailable, "Droits administrateur requis"); }
         });

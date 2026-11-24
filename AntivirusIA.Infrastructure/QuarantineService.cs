@@ -15,10 +15,13 @@ public sealed class QuarantineService : IQuarantineService
     private readonly byte[] _cle;
     private readonly List<QuarantineEntry> _entrees;
     private readonly SemaphoreSlim _verrou = new(1, 1);
+    private readonly IKernelActionProvider? _actions;
 
-    public QuarantineService(string dossier)
+    /// <param name="actions">Si fourni, les fichiers isolés reçoivent des droits NTFS restreints (exécution refusée).</param>
+    public QuarantineService(string dossier, IKernelActionProvider? actions = null)
     {
         _dossier = dossier;
+        _actions = actions;
         Directory.CreateDirectory(_dossier);
 
         _indexPath = Path.Combine(_dossier, "index.json");
@@ -58,6 +61,10 @@ public sealed class QuarantineService : IQuarantineService
                 File.Delete(cible);
                 throw;
             }
+
+            // Révocation des droits NTFS : best-effort, le chiffrement reste la protection principale
+            if (_actions is not null)
+                await _actions.ProtectFileAsync(cible, ct);
 
             lock (_entrees) _entrees.Add(entree);
             SauvegarderIndex();

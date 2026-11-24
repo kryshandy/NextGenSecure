@@ -9,6 +9,7 @@ using AntivirusIA.UI.Models;
 using AntivirusIA.UI.Services;
 using AntivirusIA.UI.ViewModels;
 using CoreGuard.Network;
+using CoreGuard.Response;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AntivirusIA.UI;
@@ -85,7 +86,21 @@ public partial class App : Application
         services.AddSingleton<ScanPipeline>();
 
         // Infrastructure : quarantaine chiffrée et historique SQLite sous %LocalAppData%\CoreGuard
-        services.AddSingleton<IQuarantineService>(_ => new QuarantineService(Path.Combine(dataDir, "quarantine")));
+        services.AddSingleton<IQuarantineService>(sp => new QuarantineService(
+            Path.Combine(dataDir, "quarantine"), sp.GetRequiredService<IKernelActionProvider>()));
+
+        // Actions de réponse : mode utilisateur aujourd'hui ; le driver Ring 0 fournira une autre
+        // implémentation de IKernelActionProvider, à substituer ici sans toucher aux modules
+        services.AddSingleton<IKernelActionProvider>(sp =>
+        {
+            var firewall = sp.GetRequiredService<INetworkGuard>();
+            return new UserModeActionProvider((rule, path) =>
+            {
+                if (!firewall.CanManageFirewall) return false;
+                firewall.BlockApplication(rule, path);
+                return true;
+            });
+        });
         services.AddSingleton<IScanRepository>(_ => new SqliteScanRepository(Path.Combine(dataDir, "coreguard.db")));
 
         // IA locale (LLamaSharp) : le modèle n'est chargé qu'au premier appel ; absent => repli sur le verdict local
