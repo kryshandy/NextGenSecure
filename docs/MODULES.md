@@ -16,7 +16,8 @@ Chaque module est un projet isolé qui ne référence que `AntivirusIA.Core`. Le
 | `CoreGuard.Response` | `UserModeActionProvider` : implémentation user-mode de `IKernelActionProvider` (arrêt, suspension, blocage réseau, ACL NTFS, DACL de processus) | Complet (étape 1) |
 | `CoreGuard.Vault` | Coffre-fort (SQLite, Argon2id, AES-256-GCM) | Complet côté crypto, non branché à l'UI |
 | `CoreGuard.Privacy` | Privacy Guard (caméra/micro), presse-papiers intelligent, Mode Paranoïa | Partiel (Paranoïa sans action réelle) |
-| `AntivirusIA.UI` | Interface WPF (MVVM) et composition root (DI) ; héberge aujourd'hui les modules temps réel | Partiel |
+| `AntivirusIA.UI` | Interface WPF (MVVM) et composition root (DI) ; client du service, héberge les modules liés à la session | Partiel |
 | `CoreGuard.Extension` | Extension MV3, hôte Native Messaging, OCR anti-phishing, QR | Partiel (hôte à enregistrer à la main) |
-| `CoreGuard.Service` | Worker Service `SYSTEM`, IPC named pipe, auto-défense | Prévu |
-| Tests (`*.Tests`) | 238 tests MSTest | Complet pour l'existant |
+| `CoreGuard.Ipc` | Canal UI ↔ service : trames JSON bornées, `PipeServer` (ACL, diffusion), `ServiceClient` (rejet des serveurs hors session 0) | Complet (v1, lecture seule) |
+| `CoreGuard.Service` | Service Windows LocalSystem : télémétrie ETW, arrêt des suppressions de clichés, état et alertes publiés sur le pipe | Partiel (autres modules système à migrer, auto-défense à venir) |
+| Tests (`*.Tests`) | 250 tests MSTest | Complet pour l'existant |

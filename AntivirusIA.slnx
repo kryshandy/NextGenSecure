@@ -1,4 +1,4 @@
-<Solution>
+﻿<Solution>
   <Project Path="AntivirusIA.AI/AntivirusIA.AI.csproj" />
   <Project Path="AntivirusIA.Core/AntivirusIA.Core.csproj" />
   <Project Path="AntivirusIA.Engines/AntivirusIA.Engines.csproj" />
@@ -9,6 +9,8 @@
   <Project Path="CoreGuard.Behavior.Tests/CoreGuard.Behavior.Tests.csproj" />
   <Project Path="CoreGuard.Extension/CoreGuard.Extension.csproj" />
   <Project Path="CoreGuard.Extension.Tests/CoreGuard.Extension.Tests.csproj" />
+  <Project Path="CoreGuard.Ipc/CoreGuard.Ipc.csproj" />
+  <Project Path="CoreGuard.Ipc.Tests/CoreGuard.Ipc.Tests.csproj" />
   <Project Path="CoreGuard.Network/CoreGuard.Network.csproj" />
   <Project Path="CoreGuard.Network.Tests/CoreGuard.Network.Tests.csproj" />
   <Project Path="CoreGuard.Privacy/CoreGuard.Privacy.csproj" />
@@ -16,6 +18,7 @@
   <Project Path="CoreGuard.RealTime/CoreGuard.RealTime.csproj" />
   <Project Path="CoreGuard.Response/CoreGuard.Response.csproj" />
   <Project Path="CoreGuard.Response.Tests/CoreGuard.Response.Tests.csproj" />
+  <Project Path="CoreGuard.Service/CoreGuard.Service.csproj" />
   <Project Path="CoreGuard.RealTime.Tests/CoreGuard.RealTime.Tests.csproj" />
   <Project Path="CoreGuard.Vault/CoreGuard.Vault.csproj" />
   <Project Path="CoreGuard.Vault.Tests/CoreGuard.Vault.Tests.csproj" />

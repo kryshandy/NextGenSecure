@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using AntivirusIA.UI.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CoreGuard.Behavior;
@@ -60,14 +60,21 @@ public sealed class ProtectionService : IDisposable
     /// <summary>Levé (thread UI) quand l'état d'un module a changé.</summary>
     public event Action? ModulesChanged;
 
-    public ProtectionService(AppSettings settings, AlertHub alerts, ScanService scan, UiThreatResponder responder, INetworkGuard network)
+    private readonly ServiceLink _service;
+
+    public ProtectionService(AppSettings settings, AlertHub alerts, ScanService scan, UiThreatResponder responder, INetworkGuard network,
+        ServiceLink service)
     {
         _settings = settings;
         _alerts = alerts;
         _scan = scan;
         _responder = responder;
         _network = network;
+        _service = service;
         Modules = [Files, Canaries, Behavior, Persistence, Network, Clipboard, Sensors, Paranoia];
+
+        // Le service (SYSTEM) prend la télémétrie ETW dès qu'il est joignable, et la rend s'il disparaît
+        _service.StatusChanged += () => _ = ApplyBehaviorAsync();
     }
 
     public int ActiveCount => Modules.Count(m => m.State == ModuleState.Active);
@@ -146,10 +153,28 @@ public sealed class ProtectionService : IDisposable
     }
 
     // ---- Comportement des processus (ETW : droits administrateur requis) ----
+    /// <summary>Réapplique uniquement le module comportemental (changement d'état du service).</summary>
+    public Task ApplyBehaviorAsync() => Task.Run(() =>
+    {
+        lock (_gate)
+        {
+            if (_disposed) return;
+            ApplyBehavior();
+        }
+        UiThread.Post(() => ModulesChanged?.Invoke());
+    });
+
     private void ApplyBehavior()
     {
         Stop(ref _etw, m => m.Dispose());
         if (!_settings.BehaviorEnabled) { Set(Behavior, ModuleState.Disabled, "Désactivé"); return; }
+
+        // Assurée par le service : pas de seconde session ETW dans l'UI (le service est SYSTEM, l'UI non)
+        if (_service.HandlesBehavior)
+        {
+            Set(Behavior, ModuleState.Active, "Assurée par le service CoreGuard (SYSTEM)");
+            return;
+        }
 
         Guard(Behavior, () =>
         {

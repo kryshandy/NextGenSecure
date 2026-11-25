@@ -44,6 +44,8 @@ CoreGuard.sln
 ├─ CoreGuard.Behavior         Comportement : ETW, client AMSI, gardien de persistance
 ├─ CoreGuard.Network          Pare-feu Windows (COM), énumération ports, kill switch réseau — WFP natif prévu
 ├─ CoreGuard.Response         Actions de réponse user-mode (IKernelActionProvider) : arrêt, suspension, ACL, DACL
+├─ CoreGuard.Ipc              Canal UI ↔ service (named pipe local, ACL, vérification du serveur)
+├─ CoreGuard.Service          Service Windows LocalSystem : télémétrie ETW et réponse
 ├─ CoreGuard.Vault            Coffre-fort mots de passe (SQLite + Argon2id + AES-GCM)
 ├─ CoreGuard.Privacy          Privacy Guard (caméra/micro), presse-papiers, Mode Paranoïa
 ├─ AntivirusIA.UI             Interface WPF (MVVM) — dashboard temps réel
@@ -51,7 +53,7 @@ CoreGuard.sln
 └─ AntivirusIA.Tests          Tests (MSTest)
 ```
 
-> À venir : `CoreGuard.Service` (Worker Service `SYSTEM`, IPC par named pipe) qui sortira les modules temps réel du processus de l'UI. Aujourd'hui, tout tourne dans `AntivirusIA.UI`.
+> `CoreGuard.Service` (LocalSystem) héberge la télémétrie ETW et la réponse ; l'UI s'y connecte par named pipe et garde les modules liés à la session de l'utilisateur. Sans service installé, l'UI fonctionne seule (ETW alors limité aux sessions administrateur).
 
 ---
 
@@ -106,6 +108,18 @@ Téléchargement (si absent) :
 curl -L -o "models/Llama-3.2-3B-Instruct-Q4_K_M.gguf" "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf"
 ```
 
+## Service Windows (protection système)
+
+Depuis une console PowerShell **administrateur**, à la racine du dépôt :
+
+```powershell
+./scripts/install-service.ps1
+```
+
+Le service `CoreGuardService` est publié dans `%ProgramFiles%\CoreGuard\Service`, démarre automatiquement et redémarre après un arrêt anormal. Désinstallation : `./scripts/uninstall-service.ps1`.
+
+En développement, le service peut tourner en console (`dotnet run --project CoreGuard.Service`) ; l'UI ne l'accepte alors que si elle est compilée en Debug **et** lancée avec `COREGUARD_DEV_SERVICE=1`. En Release, seul un vrai service (session 0) est accepté.
+
 ## Compiler & lancer
 
 ```powershell
@@ -122,7 +136,7 @@ dotnet run --project AntivirusIA.UI
 dotnet test AntivirusIA.slnx
 ```
 
-238 tests MSTest (moteurs, quarantaine, règles, comportement, réseau, réponse, vie privée, coffre, extension). Procédure de test manuelle : [`docs/TESTING.md`](docs/TESTING.md).
+250 tests MSTest (moteurs, quarantaine, règles, comportement, réseau, réponse, IPC, vie privée, coffre, extension). Procédure de test manuelle : [`docs/TESTING.md`](docs/TESTING.md).
 
 ---
 
@@ -141,6 +155,7 @@ Le projet est pensé pour le travail à plusieurs (humains **et** sous-agents IA
 ## Sécurité & limites assumées
 
 - Sans le driver, 4 protections passent de « blocage » à « détection + réaction immédiate » : canaris, anti-`taskkill`, coffre-fort, anti-infostealer navigateur.
-- Tant que `CoreGuard.Service` n'existe pas, les données de CoreGuard (`%LocalAppData%\CoreGuard`) et le processus sont accessibles à tout programme lancé sous le même compte : DPAPI protège la clé de quarantaine contre la copie vers une autre machine, pas contre un malware de la même session.
+- Les données de l'UI (`%LocalAppData%\CoreGuard`) et son processus restent accessibles à tout programme lancé sous le même compte : DPAPI protège la clé de quarantaine contre la copie vers une autre machine, pas contre un malware de la même session.
+- Le canal UI ↔ service est en lecture seule : aucune commande ne peut être envoyée au service SYSTEM tant que l'authentification HMAC (étape 3) n'existe pas.
 - L'IA assiste et explique ; elle ne remplace pas les règles déterministes.
 - Voir [`docs/PLAN.md`](docs/PLAN.md) pour le détail complet.

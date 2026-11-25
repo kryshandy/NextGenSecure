@@ -1,15 +1,15 @@
 # Audit CoreGuard — alignement sur l'architecture consolidée
 
-*Audit du 24/11/2026 (commit `c0e9def`), mis à jour le 25/11/2026 après l'étape 1 du plan. Toutes les affirmations ci-dessous viennent d'une lecture du code et d'une exécution de `dotnet build` / `dotnet test`.*
+*Audit du 24/11/2026 (commit `c0e9def`), mis à jour le 25/11/2026 après les étapes 1 et 2 du plan. Toutes les affirmations ci-dessous viennent d'une lecture du code et d'une exécution de `dotnet build` / `dotnet test`.*
 
 ## Synthèse
 
 | Point | Constat |
 |---|---|
 | Compilation | `dotnet build AntivirusIA.slnx` : **0 erreur, 0 avertissement** (18 projets). |
-| Tests | `dotnet test` : **238 tests verts** (84 socle + 57 Behavior + 38 Extension + 24 Privacy + 11 Vault + 10 Network + 10 Response + 4 RealTime). |
+| Tests | `dotnet test` : **250 tests verts** (84 socle + 57 Behavior + 38 Extension + 24 Privacy + 12 Ipc + 11 Vault + 10 Network + 10 Response + 4 RealTime). |
 | Ring 0 | Aucun code ne référence de driver : rien ne bloque sans `CoreGuard.Driver`. L'abstraction **`IKernelActionProvider`** (Core) est en place, avec **`UserModeActionProvider`** (CoreGuard.Response) câblé par défaut. |
-| Composants | **UI** et **Extension** existent. **`CoreGuard.Service` (Worker Service SYSTEM) n'existe pas** : tous les modules tournent aujourd'hui dans le processus WPF, sous le compte utilisateur. |
+| Composants | Les 3 composants existent. **`CoreGuard.Service`** (Worker Service LocalSystem, session 0) héberge la télémétrie ETW et la réponse associée ; l'UI s'y connecte par named pipe et garde les modules liés à la session (presse-papiers, caméra/micro, canaris, téléchargements, persistance HKCU). Sans service, l'UI reprend ETW elle-même. |
 | Framework | Le code cible **.NET 10** (LTS), pas .NET 8/9. Aucune raison de redescendre : .NET 10 est la LTS actuelle et toutes les dépendances le supportent. |
 | Démos | 7 spécimens sur 10. **Aucun des 10 scénarios n'est démontrable de bout en bout aujourd'hui avec blocage réel** (voir §5). |
 
@@ -58,7 +58,8 @@ Légende des états : **Complet** (fait ce que la spec demande) · **Partiel** (
 | `CoreGuard.Extension` | Program (hôte), HostRouter, NativeMessagingProtocol, OcrPhishingAnalyzer, PhishingLogic, QrCodeScanner, `extension/` (MV3) | Partiel (enregistrement de l'hôte et coffre non branchés) |
 | `AntivirusIA.UI` | App (composition root DI), 5 vues, ViewModels, Services (Scan, Protection, AlertHub, Settings, Theme…) | Partiel : fonctionnel ; refonte visuelle en cours |
 | `CoreGuard.Response` | UserModeActionProvider (arrêt, suspension, blocage réseau, ACL NTFS, DACL de processus), Native | Complet pour l'étape 1 |
-| `CoreGuard.Service` | — | **Absent** |
+| `CoreGuard.Ipc` | IpcContract (trames, messages), PipeServer (ACL, diffusion), ServiceClient (vérification session 0) | Complet (canal v1 en lecture seule) |
+| `CoreGuard.Service` | Program (hôte Windows Service), ProtectionWorker (ETW + arrêt VSS + pipe) | Partiel : ETW et réponse migrés ; les autres modules système restent à migrer |
 | Tests (7 projets) | MSTest | Complet pour ce qui existe |
 
 ## 3. Découplage Ring 0
@@ -116,7 +117,7 @@ public interface IKernelActionProvider
 Chaque étape est livrable et testable seule ; l'ordre minimise les dépendances.
 
 1. ✅ **`IKernelActionProvider` + `UserModeActionProvider`** (Core + `CoreGuard.Response`) : arrêt, suspension, blocage réseau, ACL fichier, DACL processus ; arrêt réel des suppressions de clichés détectées par ETW ; ACL NTFS sur la quarantaine. *Fait le 25/11/2026.*
-2. **`CoreGuard.Service`** (Worker Service, `UseWindowsService`, compte SYSTEM) : déplacer ProtectionService et les moniteurs hors de l'UI ; **IPC par named pipe** avec ACL (UI ↔ service) ; l'UI devient un client. *Débloque ETW sans lancer l'UI en admin, et l'auto-défense.*
+2. ✅ **`CoreGuard.Service`** (Worker Service, LocalSystem) + **`CoreGuard.Ipc`** : ETW et arrêt des suppressions de clichés tournent dans le service ; pipe local avec ACL (réseau refusé, utilisateurs interactifs en lecture/écriture), canal v1 en lecture seule (état + alertes, aucune commande), client qui rejette tout serveur hors session 0 (anti-usurpation) ; repli automatique sur l'ETW local. Installation : `scripts/install-service.ps1`. *Fait le 25/11/2026 ; reste à migrer persistance HKLM, réseau et canaris côté service.*
 3. **Auto-défense** : watchdog mutuel service ↔ watchdog, DACL du processus sans `PROCESS_TERMINATE` pour les utilisateurs, arrêt légitime via mot de passe UI → jeton HMAC vérifié par le service et le watchdog. *Scénario 3.*
 4. **Réponse ransomware** : kill réel du suspect sur canari + VSS ; corriger le spécimen 02 (écrire dans un dossier surveillé dédié `Documents\CoreGuardDemo`) ; canaris cachés et noms de la spec ; gérer `FileSystemWatcher.Error`. *Scénario 2.*
 5. **Fournisseur AMSI** (DLL COM native ou `DllExport`, enregistrée sous `HKLM\SOFTWARE\Microsoft\AMSI\Providers`) qui transmet les scripts au service via pipe ; règles + LLM pour l'explication. *Scénario 1.*

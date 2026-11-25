@@ -52,6 +52,8 @@ public partial class App : Application
 
         // Démarre les modules temps réel hors thread UI ; les échecs sont isolés module par module
         _ = _services.GetRequiredService<ProtectionService>().ApplyAsync();
+        // Lien avec le service SYSTEM : s'il répond, il reprend la télémétrie ETW (sinon fonctionnement autonome)
+        _services.GetRequiredService<ServiceLink>().Start();
         _ = _services.GetRequiredService<QuarantineViewModel>().OnNavigatedToAsync();
         _ = LoadStatsAsync(_services);
     }
@@ -109,6 +111,7 @@ public partial class App : Application
         // Modules CoreGuard temps réel
         services.AddSingleton<INetworkGuard, WindowsFirewall>();
         services.AddSingleton<UiThreatResponder>();
+        services.AddSingleton<ServiceLink>();
         services.AddSingleton<ProtectionService>();
         services.AddSingleton<ScanService>();
 
