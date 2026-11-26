@@ -23,6 +23,7 @@
     <ProjectReference Include="..\AntivirusIA.Engines\AntivirusIA.Engines.csproj" />
     <ProjectReference Include="..\CoreGuard.Behavior\CoreGuard.Behavior.csproj" />
     <ProjectReference Include="..\CoreGuard.Ipc\CoreGuard.Ipc.csproj" />
+    <ProjectReference Include="..\CoreGuard.Memory\CoreGuard.Memory.csproj" />
     <ProjectReference Include="..\CoreGuard.Network\CoreGuard.Network.csproj" />
     <ProjectReference Include="..\CoreGuard.RealTime\CoreGuard.RealTime.csproj" />
     <ProjectReference Include="..\CoreGuard.Response\CoreGuard.Response.csproj" />

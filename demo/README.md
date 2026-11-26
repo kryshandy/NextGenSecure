@@ -31,7 +31,7 @@ Les scénarios utilisent des **spécimens bénins de laboratoire** : des fichier
 
 ## Spécimens fournis (tous « DÉMO — INOFFENSIF »)
 
-Tous les chemins de test sont sous `%TEMP%\CoreGuardDemo`, `127.0.0.1`/`localhost` uniquement, données factices. Depuis `demo/`, avec PowerShell (`-ExecutionPolicy Bypass -File ...` si besoin). Les scénarios 5 (injection mémoire) et 10 (caméra) n'ont pas encore de spécimen. Le scénario 2 (désactivation de la protection) a le spécimen `08-anti-kill`, qui ne vise que CoreGuard.
+Tous les chemins de test sont sous `%TEMP%\CoreGuardDemo`, `127.0.0.1`/`localhost` uniquement, données factices. Depuis `demo/`, avec PowerShell (`-ExecutionPolicy Bypass -File ...` si besoin). Le scénario 10 (caméra) n'a pas encore de spécimen. Le scénario 2 (désactivation de la protection) a le spécimen `08-anti-kill`, qui ne vise que CoreGuard.
 
 | Dossier | Scénario | Lancer | Déclenche | Défense attendue | Nettoyage |
 |---------|----------|--------|-----------|------------------|-----------|
@@ -42,6 +42,7 @@ Tous les chemins de test sont sous `%TEMP%\CoreGuardDemo`, `127.0.0.1`/`localhos
 | `05-crypto-clipper` | 8 | `dotnet run --project .\05-crypto-clipper` | Remplacement d'une fausse adresse BTC par une autre dans le presse-papiers (CoreGuard.Privacy) | Presse-papiers intelligent, restauration | `Ctrl+C` ou 60 s ; rien à nettoyer |
 | `06-phishing-visuel` | 6 | `.\06-phishing-visuel\serve-phishing-demo.ps1` puis ouvrir `http://localhost:8080` | Faux « Sign in » Microsoft rendu en image (texte absent du HTML), sans formulaire | OCR anti-phishing (extension navigateur) | `Ctrl+C` ou `http://localhost:8080/stop` |
 | `08-anti-kill` | 2 | `.\08-anti-kill\demo-anti-kill.ps1` (service installé) | `Stop-Service`, `sc stop` et `taskkill /F` sur le service et le watchdog CoreGuard | Arrêts refusés, relance mutuelle si un processus tombe ; seul le mot de passe arrête la protection | Aucun |
+| `09-injection-memoire` | 5 | `dotnet run --project .\09-injection-memoire` | Faux en-tête d'exécutable (MZ/PE, aucun code) écrit dans une zone RWX de SA propre mémoire, jamais exécuté | Arrêt du processus au prochain scan mémoire (≤ 50 s) ; alerte « Code injecté » | Aucun |
 | `07-vol-identifiants` | 7 | `.\07-vol-identifiants\demo-infostealer.ps1` | Ouverture/lecture/copie d'un FAUX `Login Data` dans un faux profil de test (jamais le vrai) | Règle anti-infostealer (à venir) | `-Nettoyer` |
 
 Les projets C# (`BadUsbSim.csproj`, `ClipperSim.csproj`) sont isolés et ne sont pas dans `AntivirusIA.slnx`.

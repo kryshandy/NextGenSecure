@@ -22,4 +22,5 @@ Chaque module est un projet isolé qui ne référence que `AntivirusIA.Core`. Le
 | `CoreGuard.Service` | Service Windows LocalSystem : télémétrie ETW, arrêt des suppressions de clichés, canaris + audit NTFS, analyse des scripts AMSI, auto-défense, état et alertes sur le pipe | Partiel (persistance HKLM et réseau à migrer) |
 | `CoreGuard.AmsiProvider` | Fournisseur AMSI natif (NativeAOT, COM) : transmet chaque script au service avant exécution, bloque sur son verdict | Complet (x64, non signé) |
 | `CoreGuard.Devices` | Moniteur BadUSB : cadence de frappe (hook clavier), blocage de l'injection, détection des nouveaux claviers | Complet |
-| Tests (`*.Tests`) | 316 tests MSTest | Complet pour l'existant |
+| `CoreGuard.Memory` | Scan mémoire « fileless » : régions privées exécutables, détection d'images PE injectées | Complet |
+| Tests (`*.Tests`) | 329 tests MSTest | Complet pour l'existant |

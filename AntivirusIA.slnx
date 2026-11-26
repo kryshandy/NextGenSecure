@@ -15,6 +15,8 @@
   <Project Path="CoreGuard.Extension.Tests/CoreGuard.Extension.Tests.csproj" />
   <Project Path="CoreGuard.Ipc/CoreGuard.Ipc.csproj" />
   <Project Path="CoreGuard.Ipc.Tests/CoreGuard.Ipc.Tests.csproj" />
+  <Project Path="CoreGuard.Memory/CoreGuard.Memory.csproj" />
+  <Project Path="CoreGuard.Memory.Tests/CoreGuard.Memory.Tests.csproj" />
   <Project Path="CoreGuard.Network/CoreGuard.Network.csproj" />
   <Project Path="CoreGuard.Network.Tests/CoreGuard.Network.Tests.csproj" />
   <Project Path="CoreGuard.Privacy/CoreGuard.Privacy.csproj" />

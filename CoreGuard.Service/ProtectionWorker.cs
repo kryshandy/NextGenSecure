@@ -37,6 +37,7 @@ public sealed class ProtectionWorker(
     private PipeServer? _server;
     private EtwProcessMonitor? _etw;
     private CanaryGuard? _canaries;
+    private MemoryGuard? _memory;
     private int _stopAccepted;
     private int _amsiScanned, _amsiBlocked;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> _amsiAlerted = new();
@@ -51,6 +52,7 @@ public sealed class ProtectionWorker(
         // ETW d'abord : son démarrage ouvre le processus courant, ce que la DACL durcie restreint ensuite
         StartBehavior();
         StartCanaries();
+        StartMemoryScan();
         if (options.Supervise) await StartSelfDefenseAsync();
         logger.LogInformation("CoreGuard démarré (PID {Pid}, élevé : {Elevated}, actions : {Provider}, auto-défense : {Harden}, mot de passe : {Pwd}).",
             Environment.ProcessId, Environment.IsPrivilegedProcess, actions.Name, options.Harden, stopAuthenticator.IsConfigured);
@@ -182,6 +184,22 @@ public sealed class ProtectionWorker(
         _server?.BroadcastStatus();
     }
 
+    // ---------- Scan mémoire (fileless) ----------
+
+    private void StartMemoryScan()
+    {
+        // Exclus : CoreGuard lui-même et son watchdog
+        ISet<int> Excluded()
+        {
+            var set = new HashSet<int> { Environment.ProcessId };
+            if (watchdog.WatchdogPid is int wd) set.Add(wd);
+            return set;
+        }
+        _memory = new MemoryGuard(actions, Publish, Excluded, logger);
+        _memory.Start();
+        logger.LogInformation("Scan mémoire actif (toutes les {Seconds} s).", MemoryGuard.Interval.TotalSeconds);
+    }
+
     // ---------- Comportement (ETW) ----------
 
     private void StartBehavior()
@@ -244,11 +262,15 @@ public sealed class ProtectionWorker(
         var canaries = guard is { CanaryCount: > 0 }
             ? new ModuleStatus(ServiceModules.Canaries, "Active", guard.StatusText)
             : new ModuleStatus(ServiceModules.Canaries, "Unavailable", guard?.StatusText ?? "Non démarrés");
+        var memoryGuard = _memory;
+        var memory = memoryGuard is null
+            ? new ModuleStatus(ServiceModules.Memory, "Unavailable", "Scan mémoire non démarré")
+            : new ModuleStatus(ServiceModules.Memory, "Active", memoryGuard.StatusText);
         var amsi = AmsiProviderRegistered()
             ? new ModuleStatus(ServiceModules.Amsi, "Active", $"Fournisseur AMSI enregistré : {_amsiScanned} contenu(s) analysé(s), {_amsiBlocked} bloqué(s)")
             : new ModuleStatus(ServiceModules.Amsi, "Unavailable", "Fournisseur AMSI non enregistré (scripts/install-service.ps1)");
         return new ServiceStatus(IpcContract.ProtocolVersion, Environment.ProcessId, _startedUtc,
-            actions.Name, actions.IsKernelBacked, Environment.IsPrivilegedProcess, [behavior, canaries, amsi, selfDefense])
+            actions.Name, actions.IsKernelBacked, Environment.IsPrivilegedProcess, [behavior, canaries, amsi, memory, selfDefense])
         {
             StopPasswordConfigured = stopAuthenticator.IsConfigured
         };
@@ -262,6 +284,8 @@ public sealed class ProtectionWorker(
         _etw?.Dispose();
         _etw = null;
         _canaries?.Dispose(); // retire les canaris du disque
+        _memory?.Dispose();
+        _memory = null;
         _canaries = null;
         if (_server is not null) await _server.DisposeAsync();
         _server = null;
