@@ -17,16 +17,23 @@ public sealed partial class PipeServer : IAsyncDisposable
     private readonly string _pipeName;
     private readonly Func<ServiceStatus> _status;
     private readonly PipeSecurity? _security;
+    private readonly Func<IpcEnvelope, IpcEnvelope?>? _commands;
     private readonly ConcurrentDictionary<Guid, ClientConnection> _clients = new();
     private readonly CancellationTokenSource _cts = new();
     private Task? _acceptLoop;
 
     /// <param name="security">ACL du pipe ; null = ACL par défaut (tests). Voir <see cref="CreateServiceSecurity"/>.</param>
-    public PipeServer(string pipeName, Func<ServiceStatus> status, PipeSecurity? security)
+    /// <param name="commands">
+    /// Traitement des demandes autres que l'état (défi et demande d'arrêt) ; null = canal en lecture seule.
+    /// Renvoyer null refuse la demande.
+    /// </param>
+    public PipeServer(string pipeName, Func<ServiceStatus> status, PipeSecurity? security,
+        Func<IpcEnvelope, IpcEnvelope?>? commands = null)
     {
         _pipeName = pipeName;
         _status = status;
         _security = security;
+        _commands = commands;
     }
 
     public int ClientCount => _clients.Count;
@@ -143,7 +150,9 @@ public sealed partial class PipeServer : IAsyncDisposable
                 {
                     IpcContract.Types.Hello or IpcContract.Types.GetStatus =>
                         new IpcEnvelope(IpcContract.Types.Status, Status: SafeStatus(), Version: IpcContract.ProtocolVersion),
-                    // Toute autre demande est refusée : le canal v1 est en lecture seule
+                    IpcContract.Types.Challenge or IpcContract.Types.StopRequest =>
+                        SafeCommand(message) ?? new IpcEnvelope(IpcContract.Types.Error, Error: "Requête refusée."),
+                    // Toute autre demande est refusée
                     _ => new IpcEnvelope(IpcContract.Types.Error, Error: "Requête non prise en charge.")
                 };
                 await client.SendAsync(reply).ConfigureAwait(false);
@@ -158,6 +167,13 @@ public sealed partial class PipeServer : IAsyncDisposable
             _clients.TryRemove(client.Id, out _);
             await client.DisposeAsync().ConfigureAwait(false);
         }
+    }
+
+    private IpcEnvelope? SafeCommand(IpcEnvelope message)
+    {
+        if (_commands is null) return null;
+        try { return _commands(message); }
+        catch (Exception ex) when (ex is not OutOfMemoryException) { return null; }
     }
 
     private ServiceStatus SafeStatus()

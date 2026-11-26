@@ -17,6 +17,8 @@ public sealed partial class ServiceClient : IAsyncDisposable
     private NamedPipeClientStream? _pipe;
     private CancellationTokenSource? _cts;
     private Task? _readLoop;
+    private readonly SemaphoreSlim _requestLock = new(1, 1);
+    private TaskCompletionSource<IpcEnvelope>? _pending;
 
     /// <param name="requireServiceSession">
     /// true en production : le serveur doit être en session 0. false uniquement pour les tests et le
@@ -76,6 +78,52 @@ public sealed partial class ServiceClient : IAsyncDisposable
 
     internal Task SendRawAsync(IpcEnvelope message) => SendAsync(message);
 
+    /// <summary>
+    /// Demande l'arrêt de la protection : défi, preuve HMAC calculée à partir du mot de passe, verdict du service.
+    /// Le mot de passe ne quitte jamais ce processus.
+    /// </summary>
+    public async Task<StopResult> RequestStopAsync(string password, CancellationToken ct = default)
+    {
+        if (!IsConnected) return new StopResult(false, "Service CoreGuard non connecté.");
+
+        await _requestLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            IpcEnvelope challengeReply = await RoundTripAsync(new IpcEnvelope(IpcContract.Types.Challenge), ct).ConfigureAwait(false);
+            if (challengeReply.Challenge is not { } challenge)
+                return new StopResult(false, challengeReply.Error ?? "Le service n'a pas fourni de défi.");
+
+            string proof = await Task.Run(() => StopProtocol.Answer(password, challenge), ct).ConfigureAwait(false);
+            IpcEnvelope verdict = await RoundTripAsync(
+                new IpcEnvelope(IpcContract.Types.StopRequest, Stop: new StopRequest(challenge.Nonce, proof)), ct).ConfigureAwait(false);
+            return verdict.StopResult ?? new StopResult(false, verdict.Error ?? "Réponse du service invalide.");
+        }
+        catch (TimeoutException)
+        {
+            return new StopResult(false, "Le service ne répond pas.");
+        }
+        finally
+        {
+            _requestLock.Release();
+        }
+    }
+
+    // Une seule demande à la fois (verrou) : la prochaine réponse non sollicitée (hors état/alerte) lui revient
+    private async Task<IpcEnvelope> RoundTripAsync(IpcEnvelope request, CancellationToken ct)
+    {
+        var tcs = new TaskCompletionSource<IpcEnvelope>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _pending = tcs;
+        try
+        {
+            await SendAsync(request).ConfigureAwait(false);
+            return await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10), ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _pending = null;
+        }
+    }
+
     private async Task SendAsync(IpcEnvelope message)
     {
         var pipe = _pipe;
@@ -112,6 +160,9 @@ public sealed partial class ServiceClient : IAsyncDisposable
                         break;
                     case IpcContract.Types.Alert when message.Alert is not null:
                         AlertReceived?.Invoke(this, message.Alert);
+                        break;
+                    case IpcContract.Types.Challenge or IpcContract.Types.StopResult or IpcContract.Types.Error:
+                        _pending?.TrySetResult(message);
                         break;
                 }
             }

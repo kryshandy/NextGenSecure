@@ -1,6 +1,7 @@
 ﻿<#
 .SYNOPSIS
-  Arrête et supprime le service Windows CoreGuard, puis efface ses fichiers.
+  Arrête (mot de passe de protection requis) et supprime le service Windows CoreGuard, puis efface ses fichiers.
+  Le secret %ProgramData%\CoreGuard\protection.json est conservé ; supprimez-le à la main si besoin.
   À lancer depuis une console PowerShell **administrateur** : ./scripts/uninstall-service.ps1
 #>
 [CmdletBinding()]
@@ -19,7 +20,12 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
 if ($service) {
     if ($service.Status -ne 'Stopped') {
-        Stop-Service -Name $serviceName -Force
+        # Versions antérieures à l'auto-défense : arrêt classique ; sinon arrêt authentifié par mot de passe
+        Stop-Service -Name $serviceName -Force -ErrorAction SilentlyContinue
+        if ((Get-Service -Name $serviceName).Status -ne 'Stopped') {
+            & (Join-Path $InstallDir 'CoreGuard.Service.exe') --stop
+            if ($LASTEXITCODE -ne 0) { throw "Arrêt refusé : désinstallation annulée." }
+        }
         $service.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(30))
     }
     sc.exe delete $serviceName | Out-Null

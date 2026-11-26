@@ -19,6 +19,7 @@
   <Project Path="CoreGuard.Response/CoreGuard.Response.csproj" />
   <Project Path="CoreGuard.Response.Tests/CoreGuard.Response.Tests.csproj" />
   <Project Path="CoreGuard.Service/CoreGuard.Service.csproj" />
+  <Project Path="CoreGuard.Service.Tests/CoreGuard.Service.Tests.csproj" />
   <Project Path="CoreGuard.RealTime.Tests/CoreGuard.RealTime.Tests.csproj" />
   <Project Path="CoreGuard.Vault/CoreGuard.Vault.csproj" />
   <Project Path="CoreGuard.Vault.Tests/CoreGuard.Vault.Tests.csproj" />

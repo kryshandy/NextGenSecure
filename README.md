@@ -78,7 +78,7 @@ CoreGuard.sln
 - 🟡 Anti-ransomware par **canaris** + restauration immédiate (l'arrêt du processus est encore simulé)
 - 🟡 **Gardien de persistance** (Run/RunOnce, tâches planifiées, services 7045) — détection sans pop-up de blocage
 - 🟡 Pare-feu : règles par application et **kill switch** via le pare-feu Windows ; WFP natif prévu
-- 🟡 Auto-défense : durcissement de la DACL du processus disponible (non activé au démarrage) ; watchdog et arrêt protégé par HMAC prévus
+- ✅ **Auto-défense** du service : DACL durcie (taskkill refusé), watchdog mutuel (chaque processus relance l'autre), `sc stop` refusé, arrêt uniquement par **mot de passe** (défi-réponse HMAC, verrouillage après 5 échecs)
 - ⏳ Scan mémoire, moniteur BadUSB, anti-infostealer
 
 **Modules utilisateur**
@@ -116,7 +116,7 @@ Depuis une console PowerShell **administrateur**, à la racine du dépôt :
 ./scripts/install-service.ps1
 ```
 
-Le service `CoreGuardService` est publié dans `%ProgramFiles%\CoreGuard\Service`, démarre automatiquement et redémarre après un arrêt anormal. Désinstallation : `./scripts/uninstall-service.ps1`.
+Le service `CoreGuardService` est publié dans `%ProgramFiles%\CoreGuard\Service`, démarre automatiquement et redémarre après un arrêt anormal. À la première installation, le script demande un **mot de passe de protection** : il sera exigé pour tout arrêt (Réglages > Service et auto-défense > Désactiver, ou `CoreGuard.Service.exe --stop`). Désinstallation : `./scripts/uninstall-service.ps1` (mot de passe demandé).
 
 En développement, le service peut tourner en console (`dotnet run --project CoreGuard.Service`) ; l'UI ne l'accepte alors que si elle est compilée en Debug **et** lancée avec `COREGUARD_DEV_SERVICE=1`. En Release, seul un vrai service (session 0) est accepté.
 
@@ -136,7 +136,7 @@ dotnet run --project AntivirusIA.UI
 dotnet test AntivirusIA.slnx
 ```
 
-250 tests MSTest (moteurs, quarantaine, règles, comportement, réseau, réponse, IPC, vie privée, coffre, extension). Procédure de test manuelle : [`docs/TESTING.md`](docs/TESTING.md).
+270 tests MSTest (moteurs, quarantaine, règles, comportement, réseau, réponse, IPC, vie privée, coffre, extension). Procédure de test manuelle : [`docs/TESTING.md`](docs/TESTING.md).
 
 ---
 
@@ -156,6 +156,7 @@ Le projet est pensé pour le travail à plusieurs (humains **et** sous-agents IA
 
 - Sans le driver, 4 protections passent de « blocage » à « détection + réaction immédiate » : canaris, anti-`taskkill`, coffre-fort, anti-infostealer navigateur.
 - Les données de l'UI (`%LocalAppData%\CoreGuard`) et son processus restent accessibles à tout programme lancé sous le même compte : DPAPI protège la clé de quarantaine contre la copie vers une autre machine, pas contre un malware de la même session.
-- Le canal UI ↔ service est en lecture seule : aucune commande ne peut être envoyée au service SYSTEM tant que l'authentification HMAC (étape 3) n'existe pas.
+- Le canal UI ↔ service n'accepte qu'une commande, l'arrêt, et seulement après preuve du mot de passe ; aucune autre action ne peut être demandée au service SYSTEM.
+- En mode utilisateur, un administrateur disposant de SeDebugPrivilege peut encore tuer le service et son watchdog en même temps ; le gestionnaire de services relance alors le service. Le driver Ring 0 supprimera cette limite.
 - L'IA assiste et explique ; elle ne remplace pas les règles déterministes.
 - Voir [`docs/PLAN.md`](docs/PLAN.md) pour le détail complet.

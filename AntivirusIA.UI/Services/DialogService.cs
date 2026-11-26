@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using AntivirusIA.UI.Views;
 using Microsoft.Win32;
 
@@ -10,6 +10,9 @@ public interface IDialogService
     bool Confirm(string title, string message, string confirmText = "Confirmer", bool danger = false);
     string? PickFile(string title = "Choisir un fichier", string filter = "Tous les fichiers (*.*)|*.*");
     string? PickFolder(string title = "Choisir un dossier");
+
+    /// <summary>Demande un mot de passe et le soumet ; vrai si <paramref name="submit"/> l'a accepté.</summary>
+    bool AskPassword(string title, string message, string confirmText, Func<string, Task<CoreGuard.Ipc.StopResult>> submit);
 }
 
 public sealed class DialogService : IDialogService
@@ -24,6 +27,12 @@ public sealed class DialogService : IDialogService
     {
         var dialog = new OpenFileDialog { Title = title, Filter = filter, CheckFileExists = true };
         return dialog.ShowDialog() == true ? dialog.FileName : null;
+    }
+
+    public bool AskPassword(string title, string message, string confirmText, Func<string, Task<CoreGuard.Ipc.StopResult>> submit)
+    {
+        var dialog = new PasswordDialog(title, message, confirmText, submit) { Owner = Application.Current.MainWindow };
+        return dialog.ShowDialog() == true;
     }
 
     public string? PickFolder(string title = "Choisir un dossier")

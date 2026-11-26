@@ -21,7 +21,10 @@ public sealed class ServiceLink : IDisposable
     public ServiceLink(AlertHub alerts)
     {
         _alerts = alerts;
-        _client = new ServiceClient(IpcContract.PipeName, requireServiceSession: !DevServiceAllowed);
+        // Mode développement : pipe dédié du service lancé en console (jamais celui du service installé)
+        _client = DevServiceAllowed
+            ? new ServiceClient(IpcContract.DevPipeName, requireServiceSession: false)
+            : new ServiceClient(IpcContract.PipeName, requireServiceSession: true);
         _client.StatusReceived += (_, s) => { _status = s; StatusChanged?.Invoke(); };
         _client.AlertReceived += (_, a) => _alerts.Publish(MapSeverity(a.Severity), "Service · " + a.Source, a.Title, a.Detail);
         _client.Disconnected += (_, _) =>
@@ -55,6 +58,12 @@ public sealed class ServiceLink : IDisposable
 
     /// <summary>Vrai si le service assure lui-même la télémétrie ETW des processus.</summary>
     public bool HandlesBehavior => IsConnected && _status!.IsModuleActive(ServiceModules.Behavior);
+
+    /// <summary>Vrai si l'auto-défense du service (DACL durcie + watchdog) est active.</summary>
+    public bool SelfDefenseActive => IsConnected && _status!.IsModuleActive(ServiceModules.SelfDefense);
+
+    /// <summary>Demande l'arrêt authentifié du service (le mot de passe ne quitte pas ce processus).</summary>
+    public Task<StopResult> RequestStopAsync(string password) => _client.RequestStopAsync(password);
 
     /// <summary>Levé (thread quelconque) quand la connexion ou l'état du service change.</summary>
     public event Action? StatusChanged;

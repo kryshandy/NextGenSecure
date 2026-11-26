@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Windows;
 using AntivirusIA.UI.Models;
 using AntivirusIA.UI.Services;
@@ -13,9 +13,14 @@ public sealed partial class SettingsViewModel : ObservableObject, IPageViewModel
     private readonly ProtectionService _protection;
     private readonly ThemeService _theme;
     private readonly IDialogService _dialogs;
+    private readonly ServiceLink _service;
 
-    public SettingsViewModel(AppSettings settings, SettingsStore store, ProtectionService protection, ThemeService theme, IDialogService dialogs)
+    public SettingsViewModel(AppSettings settings, SettingsStore store, ProtectionService protection, ThemeService theme, IDialogService dialogs,
+        ServiceLink service)
     {
+        _service = service;
+        _service.StatusChanged += () => UiThread.Post(RefreshServiceStatus);
+        RefreshServiceStatus();
         Settings = settings;
         _store = store;
         _protection = protection;
@@ -34,6 +39,11 @@ public sealed partial class SettingsViewModel : ObservableObject, IPageViewModel
     [ObservableProperty] private bool _modelFound;
     [ObservableProperty] private string _resolvedModelPath = string.Empty;
     [ObservableProperty] private string _savedMessage = string.Empty;
+
+    // Service CoreGuard et auto-défense
+    [ObservableProperty] private string _serviceStatus = string.Empty;
+    [ObservableProperty] private bool _serviceConnected;
+    [ObservableProperty] private string _stopMessage = string.Empty;
 
     // Largeurs relatives des trois bandes (Sain / Suspect / Malveillant) de l'aperçu des seuils
     [ObservableProperty] private GridLength _bandHealthy = new(30, GridUnitType.Star);
@@ -95,6 +105,31 @@ public sealed partial class SettingsViewModel : ObservableObject, IPageViewModel
         _store.Save(Settings);
         await _protection.ApplyAsync();
         SavedMessage = "Réglages enregistrés et appliqués.";
+    }
+
+    private void RefreshServiceStatus()
+    {
+        ServiceConnected = _service.IsConnected;
+        var s = _service.Status;
+        string selfDefense = _service.SelfDefenseActive ? "active" : "inactive";
+        ServiceStatus = s is null
+            ? "Service CoreGuard non connecté : protection système inactive (installez-le avec scripts/install-service.ps1)."
+            : $"Service connecté (PID {s.ProcessId}). Auto-défense : {selfDefense}. "
+              + (s.StopPasswordConfigured ? "Mot de passe de protection configuré." : "Aucun mot de passe : arrêt impossible depuis l'interface.");
+        StopProtectionCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanStopProtection() => _service.IsConnected;
+
+    /// <summary>Arrêt authentifié : le service vérifie le mot de passe par défi-réponse HMAC, puis prévient son watchdog.</summary>
+    [RelayCommand(CanExecute = nameof(CanStopProtection))]
+    private void StopProtection()
+    {
+        bool stopped = _dialogs.AskPassword("Désactiver la protection",
+            "Le service CoreGuard et son watchdog vont s'arrêter : la protection système sera inactive jusqu'au prochain démarrage du service. "
+            + "Saisissez le mot de passe de protection défini à l'installation.",
+            "Désactiver", _service.RequestStopAsync);
+        StopMessage = stopped ? "Protection arrêtée par mot de passe." : string.Empty;
     }
 
     [RelayCommand]

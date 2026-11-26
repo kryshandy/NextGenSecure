@@ -1,13 +1,13 @@
 # Audit CoreGuard — alignement sur l'architecture consolidée
 
-*Audit du 24/11/2026 (commit `c0e9def`), mis à jour le 25/11/2026 après les étapes 1 et 2 du plan. Toutes les affirmations ci-dessous viennent d'une lecture du code et d'une exécution de `dotnet build` / `dotnet test`.*
+*Audit du 24/11/2026 (commit `c0e9def`), mis à jour le 26/11/2026 après les étapes 1 à 3 du plan. Toutes les affirmations ci-dessous viennent d'une lecture du code et d'une exécution de `dotnet build` / `dotnet test`.*
 
 ## Synthèse
 
 | Point | Constat |
 |---|---|
 | Compilation | `dotnet build AntivirusIA.slnx` : **0 erreur, 0 avertissement** (18 projets). |
-| Tests | `dotnet test` : **250 tests verts** (84 socle + 57 Behavior + 38 Extension + 24 Privacy + 12 Ipc + 11 Vault + 10 Network + 10 Response + 4 RealTime). |
+| Tests | `dotnet test` : **270 tests verts** (84 socle + 57 Behavior + 38 Extension + 24 Privacy + 23 Ipc + 11 Vault + 10 Network + 10 Response + 9 Service + 4 RealTime). |
 | Ring 0 | Aucun code ne référence de driver : rien ne bloque sans `CoreGuard.Driver`. L'abstraction **`IKernelActionProvider`** (Core) est en place, avec **`UserModeActionProvider`** (CoreGuard.Response) câblé par défaut. |
 | Composants | Les 3 composants existent. **`CoreGuard.Service`** (Worker Service LocalSystem, session 0) héberge la télémétrie ETW et la réponse associée ; l'UI s'y connecte par named pipe et garde les modules liés à la session (presse-papiers, caméra/micro, canaris, téléchargements, persistance HKCU). Sans service, l'UI reprend ETW elle-même. |
 | Framework | Le code cible **.NET 10** (LTS), pas .NET 8/9. Aucune raison de redescendre : .NET 10 est la LTS actuelle et toutes les dépendances le supportent. |
@@ -32,7 +32,7 @@ Légende des états : **Complet** (fait ce que la spec demande) · **Partiel** (
 | 8 | Anti-ransomware canaris | `CoreGuard.RealTime/CanaryManager.cs`, `PidResolver.cs` | **Partiel + Bug** | Déploiement, surveillance, restauration depuis copie AES en mémoire : OK. Écarts : fichiers **non cachés**, noms différents de la spec (`_zz_backup.xlsx`, `~000_archive.docx`…), **arrêt du processus simulé** (`UiThreatResponder.KillProcessAsync`), PID coupable deviné (« dernier processus lancé »). **Bug démo** : le spécimen 02 écrit dans `%TEMP%\CoreGuardDemo`, que le `CanaryManager` ne surveille pas (il surveille Documents/Bureau/Images). |
 | 9 | Scan mémoire (fileless) | — | **Absent** | Aucun `VirtualQueryEx` / `ReadProcessMemory`. |
 | 10 | Moniteur BadUSB | — | **Absent** | Aucun `Win32_DeviceChangeEvent`, aucune analyse de cadence. Le spécimen `04-badusb-hid` existe mais rien ne le détecte. |
-| 11 | Auto-défense (watchdog, ACL, HMAC) | `CoreGuard.Response/UserModeActionProvider.cs` | **Partiel** | Durcissement de la DACL de processus disponible (`ProtectSelfAsync`, testé : un tiers ne peut plus arrêter le processus) mais **pas encore activé au démarrage** ; pas de watchdog, pas d'arrêt protégé par mot de passe. |
+| 11 | Auto-défense (watchdog, ACL, HMAC) | `CoreGuard.Service/Watchdog.cs`, `ServiceHost.cs`, `CoreGuard.Ipc/StopAuthentication.cs` | **Complet (user-mode)** | DACL durcie du service et du watchdog (taskkill/Stop-Process : accès refusé, vérifié) ; watchdog mutuel (chacun relance l'autre, vérifié) ; `sc stop` refusé (`CanStop = false`) ; arrêt uniquement par mot de passe (défi-réponse HMAC, nonce unique, verrouillage après 5 échecs) qui prévient le watchdog par un signal HMAC. Limite : un administrateur avec SeDebugPrivilege peut encore tuer les deux processus simultanément (le gestionnaire de services relance alors le service). |
 | 12 | Vault | `CoreGuard.Vault/Vault.cs` | **Partiel** | Argon2id + AES-256-GCM + SQLite : solide et testé. **Pas d'ACL NTFS**, **pas branché à l'UI**, l'hôte Native Messaging utilise `NullCredentialProvider` (l'auto-fill ne renvoie jamais rien). |
 | 13 | Anti-infostealer navigateur | — | **Absent** | Ni ACL sur `Login Data` / `Local State` / `Cookies`, ni audit des lectures. Seule la règle de contenu `Stealer-BrowserCredentials` (statique) existe. |
 | 14 | Anti-phishing visuel | `CoreGuard.Extension/*` | **Partiel** | Levenshtein, homographes, OCR Windows, QR (ZXing) : OK et testés. L'hôte n'est **pas enregistré** automatiquement (manifeste + clé de registre à créer, voir `INSTALL.txt`) et les verdicts ne remontent pas dans l'UI. |
@@ -58,8 +58,8 @@ Légende des états : **Complet** (fait ce que la spec demande) · **Partiel** (
 | `CoreGuard.Extension` | Program (hôte), HostRouter, NativeMessagingProtocol, OcrPhishingAnalyzer, PhishingLogic, QrCodeScanner, `extension/` (MV3) | Partiel (enregistrement de l'hôte et coffre non branchés) |
 | `AntivirusIA.UI` | App (composition root DI), 5 vues, ViewModels, Services (Scan, Protection, AlertHub, Settings, Theme…) | Partiel : fonctionnel ; refonte visuelle en cours |
 | `CoreGuard.Response` | UserModeActionProvider (arrêt, suspension, blocage réseau, ACL NTFS, DACL de processus), Native | Complet pour l'étape 1 |
-| `CoreGuard.Ipc` | IpcContract (trames, messages), PipeServer (ACL, diffusion), ServiceClient (vérification session 0) | Complet (canal v1 en lecture seule) |
-| `CoreGuard.Service` | Program (hôte Windows Service), ProtectionWorker (ETW + arrêt VSS + pipe) | Partiel : ETW et réponse migrés ; les autres modules système restent à migrer |
+| `CoreGuard.Ipc` | IpcContract (trames, messages), PipeServer (ACL, diffusion), ServiceClient (vérification session 0), StopAuthentication (PBKDF2 + HMAC) | Complet (état, alertes, arrêt authentifié) |
+| `CoreGuard.Service` | Program (hôte + CLI), ProtectionWorker (ETW, arrêt VSS, pipe, arrêt authentifié), Watchdog (surveillance mutuelle), ServiceHost (cycle de vie qui refuse sc stop) | Partiel : auto-défense complète ; persistance HKLM, réseau et canaris restent à migrer |
 | Tests (7 projets) | MSTest | Complet pour ce qui existe |
 
 ## 3. Découplage Ring 0
@@ -101,7 +101,7 @@ public interface IKernelActionProvider
 |---|---|---|---|---|---|
 | 1 | PowerShell AMSI | ✅ `01` | Partiel (règle ETW Office→shell / règle de contenu si le fichier est scanné) | ❌ | Fournisseur AMSI réel |
 | 2 | Ransomware VSS/Canari | ✅ `02` | ⚠️ VSS par ETW (admin) ; canaris **non touchés** par le spécimen (bug de dossier) | 🟡 commande VSS arrêtée (le spécimen ne fait qu'un `echo`) | Kill sur canari, spécimen aligné sur les dossiers surveillés |
-| 3 | Anti-Kill Watchdog | ❌ | ❌ | ❌ | Service + watchdog + ACL + HMAC |
+| 3 | Anti-Kill Watchdog | ✅ `08` | ✅ | ✅ arrêt refusé, relance mutuelle | Vérifier en service installé (essais faits en console) |
 | 4 | BadUSB HID | ✅ `04` | ❌ | ❌ | Moniteur HID + cadence |
 | 5 | Injection mémoire | ❌ | ❌ | ❌ | Scanner mémoire + spécimen bénin (auto-injection dans un processus de test) |
 | 6 | Phishing OCR | ✅ `06` | ✅ via l'extension, si l'hôte est enregistré | n/a (alerte) | Script d'installation de l'hôte, remontée UI |
@@ -118,7 +118,7 @@ Chaque étape est livrable et testable seule ; l'ordre minimise les dépendances
 
 1. ✅ **`IKernelActionProvider` + `UserModeActionProvider`** (Core + `CoreGuard.Response`) : arrêt, suspension, blocage réseau, ACL fichier, DACL processus ; arrêt réel des suppressions de clichés détectées par ETW ; ACL NTFS sur la quarantaine. *Fait le 25/11/2026.*
 2. ✅ **`CoreGuard.Service`** (Worker Service, LocalSystem) + **`CoreGuard.Ipc`** : ETW et arrêt des suppressions de clichés tournent dans le service ; pipe local avec ACL (réseau refusé, utilisateurs interactifs en lecture/écriture), canal v1 en lecture seule (état + alertes, aucune commande), client qui rejette tout serveur hors session 0 (anti-usurpation) ; repli automatique sur l'ETW local. Installation : `scripts/install-service.ps1`. *Fait le 25/11/2026 ; reste à migrer persistance HKLM, réseau et canaris côté service.*
-3. **Auto-défense** : watchdog mutuel service ↔ watchdog, DACL du processus sans `PROCESS_TERMINATE` pour les utilisateurs, arrêt légitime via mot de passe UI → jeton HMAC vérifié par le service et le watchdog. *Scénario 3.*
+3. ✅ **Auto-défense** : watchdog mutuel, DACL durcie, `sc stop` refusé, arrêt par mot de passe (défi-réponse HMAC depuis l'UI ou `CoreGuard.Service.exe --stop`), signal HMAC au watchdog ; mot de passe défini à l'installation (`--set-password`, administrateur). Spécimen `demo/08-anti-kill`. *Fait le 26/11/2026.*
 4. **Réponse ransomware** : kill réel du suspect sur canari + VSS ; corriger le spécimen 02 (écrire dans un dossier surveillé dédié `Documents\CoreGuardDemo`) ; canaris cachés et noms de la spec ; gérer `FileSystemWatcher.Error`. *Scénario 2.*
 5. **Fournisseur AMSI** (DLL COM native ou `DllExport`, enregistrée sous `HKLM\SOFTWARE\Microsoft\AMSI\Providers`) qui transmet les scripts au service via pipe ; règles + LLM pour l'explication. *Scénario 1.*
 6. **Moniteur BadUSB** : `ManagementEventWatcher` sur `Win32_DeviceChangeEvent` + hook clavier bas niveau pendant N s après branchement (cadence > 500 car/s, variance ≈ 0) → blocage des entrées (`BlockInput`) et alerte. *Scénario 4.*

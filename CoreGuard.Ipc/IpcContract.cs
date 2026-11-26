@@ -5,16 +5,19 @@ using System.Text.Json.Serialization;
 namespace CoreGuard.Ipc;
 
 /// <summary>
-/// Contrat du canal UI ↔ service (named pipe local). Version 1 : canal en LECTURE SEULE.
-/// Le client peut demander l'état et reçoit les alertes ; il ne peut déclencher AUCUNE action
-/// (arrêt de processus, désactivation…). Ainsi, un programme malveillant qui se connecte au pipe
-/// ne peut pas utiliser le service SYSTEM pour agir à sa place. Les commandes sensibles arriveront
-/// avec l'authentification HMAC (étape 3 du plan).
+/// Contrat du canal UI ↔ service (named pipe local). Le client peut demander l'état et reçoit les alertes.
+/// La SEULE commande acceptée est l'arrêt de la protection, et uniquement après un défi-réponse HMAC
+/// prouvant la connaissance du mot de passe de protection (<see cref="StopAuthenticator"/>). Aucune autre
+/// action (arrêt d'un processus tiers, désactivation d'un module…) n'est exposée : un programme
+/// malveillant connecté au pipe ne peut pas utiliser le service SYSTEM pour agir à sa place.
 /// Trame : longueur (int32 little-endian) puis JSON UTF-8, au plus <see cref="MaxMessageBytes"/> octets.
 /// </summary>
 public static class IpcContract
 {
     public const string PipeName = "CoreGuard.Service.v1";
+
+    /// <summary>Pipe du service lancé en console (développement) : ne se confond jamais avec le service installé.</summary>
+    public const string DevPipeName = "CoreGuard.Service.v1.dev";
     public const int ProtocolVersion = 1;
     public const int MaxMessageBytes = 64 * 1024;
 
@@ -25,6 +28,9 @@ public static class IpcContract
         public const string Status = "status";
         public const string Alert = "alert";
         public const string Error = "error";
+        public const string Challenge = "challenge";
+        public const string StopRequest = "stopRequest";
+        public const string StopResult = "stopResult";
     }
 
     internal static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
@@ -69,7 +75,15 @@ public static class IpcContract
 }
 
 /// <summary>Enveloppe de tous les messages : un type et, selon le type, un état ou une alerte.</summary>
-public sealed record IpcEnvelope(string Type, ServiceStatus? Status = null, ServiceAlert? Alert = null, string? Error = null, int? Version = null);
+public sealed record IpcEnvelope(
+    string Type,
+    ServiceStatus? Status = null,
+    ServiceAlert? Alert = null,
+    string? Error = null,
+    int? Version = null,
+    StopChallenge? Challenge = null,
+    StopRequest? Stop = null,
+    StopResult? StopResult = null);
 
 /// <summary>Alerte émise par le service. Sévérité : "Info", "Warning" ou "Critical".</summary>
 public sealed record ServiceAlert(string Severity, string Source, string Title, string Detail, DateTime TimestampUtc);
@@ -87,6 +101,9 @@ public sealed record ServiceStatus(
     bool Elevated,
     IReadOnlyList<ModuleStatus> Modules)
 {
+    /// <summary>Vrai si un mot de passe de protection est configuré (arrêt authentifié possible).</summary>
+    public bool StopPasswordConfigured { get; init; }
+
     public bool IsModuleActive(string name) =>
         Modules.Any(m => string.Equals(m.Name, name, StringComparison.OrdinalIgnoreCase) && m.State == "Active");
 }
@@ -95,4 +112,5 @@ public sealed record ServiceStatus(
 public static class ServiceModules
 {
     public const string Behavior = "Behavior";
+    public const string SelfDefense = "SelfDefense";
 }
