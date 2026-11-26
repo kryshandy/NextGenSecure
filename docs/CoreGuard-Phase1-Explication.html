@@ -111,8 +111,8 @@
   <p class="lead">Une suite de sécurité 100 % locale pour Windows 10/11 : aucun cloud, aucune donnée envoyée à l'extérieur. Chaque partie de ce document se lit à deux niveaux : <strong>en français facile</strong>, puis <strong>en termes informatiques</strong>.</p>
   <div class="stats" role="list">
     <div class="stat" role="listitem"><b>30</b><span>projets .NET dans la solution</span></div>
-    <div class="stat" role="listitem"><b>329</b><span>tests automatisés, tous verts</span></div>
-    <div class="stat" role="listitem"><b>7 / 12</b><span>étapes du plan d'alignement terminées</span></div>
+    <div class="stat" role="listitem"><b>341</b><span>tests automatisés, tous verts</span></div>
+    <div class="stat" role="listitem"><b>8 / 12</b><span>étapes du plan d'alignement terminées</span></div>
     <div class="stat" role="listitem"><b>0</b><span>dépendance au cloud ou au driver noyau</span></div>
   </div>
 </header>
@@ -250,6 +250,7 @@
     <tr><td><strong>AMSI</strong></td><td>Lit chaque script PowerShell <em>juste avant</em> qu'il s'exécute, même s'il était déguisé, et le bloque s'il est dangereux.</td><td>DLL COM native (NativeAOT) <code>IAntimalwareProvider</code> → pipe → <code>ScriptScanner</code> (règles sur le texte et sur le Base64 décodé) ; blocage si score ≥ 60 ou preuve forte ; fail-open si le service est absent.</td><td><span class="pill ok">Actif</span></td></tr>
     <tr><td><strong>BadUSB</strong></td><td>Une clé USB peut se faire passer pour un clavier et taper des commandes à toute vitesse. CoreGuard reconnaît ce rythme surhumain et bloque le clavier 10 secondes.</td><td>Hook <code>WH_KEYBOARD_LL</code> ; fenêtre de 30 frappes : débit &gt; 200 car/s, ou ≥ 40 car/s avec un coefficient de variation &lt; 0,3 ; nouveau clavier (<code>GetRawInputDeviceList</code>) → vigilance 60 s.</td><td><span class="pill ok">Actif</span></td></tr>
     <tr><td><strong>Scan mémoire</strong></td><td>Certains virus n'écrivent aucun fichier : ils se cachent directement dans la mémoire d'un programme. CoreGuard inspecte la mémoire toutes les 30 s et arrête le programme qui cache un exécutable.</td><td>Service : <code>VirtualQueryEx</code> + <code>ReadProcessMemory</code> sur les régions privées exécutables ; image PE (MZ + « PE\0\0 ») hors de toute image chargée → <code>TerminateProcess</code>. Régions RWX seules : comptées, sans alerte (trop fréquentes chez les programmes légitimes).</td><td><span class="pill ok">Actif</span></td></tr>
+    <tr><td><strong>Anti-infostealer</strong></td><td>Les « voleurs d'identifiants » copient les mots de passe et cookies enregistrés par le navigateur. Seul un vrai navigateur a le droit de lire ces fichiers : tout autre programme qui les lit est arrêté. Un faux profil de navigateur sert d'appât.</td><td>SACL d'audit en lecture (ReadData) sur <code>Login Data</code>, <code>Local State</code>, <code>Cookies</code>, <code>Web Data</code>, <code>logins.json</code>, <code>key4.db</code> ; 4663 → décision : nom d'exécutable + signature Authenticode de l'éditeur attendu ; leurre Chromium. Pas d'ACL préventive possible (même compte).</td><td><span class="pill ok">Actif</span></td></tr>
     <tr><td><strong>Presse-papiers</strong></td><td>Empêche un virus de remplacer une adresse Bitcoin copiée par la sienne, et efface un mot de passe copié au bout de 30 s.</td><td><code>AddClipboardFormatListener</code>, détection d'adresses crypto, restauration ; vidage des secrets (mots de passe, clés <code>sk-</code>, cartes).</td><td><span class="pill ok">Actif</span></td></tr>
     <tr><td><strong>Caméra / micro</strong></td><td>Prévient quand une application utilise la webcam ou le micro.</td><td>Scrutation du registre <code>CapabilityAccessManager\ConsentStore</code>.</td><td><span class="pill warn">Sans bouton de coupure</span></td></tr>
     <tr><td><strong>Persistance</strong></td><td>Signale un programme qui s'inscrit pour se relancer à chaque démarrage.</td><td>Clés <code>Run</code> / <code>RunOnce</code>, tâches planifiées, événement 7045 (services).</td><td><span class="pill warn">Alerte sans pop-up</span></td></tr>
@@ -340,7 +341,7 @@ services.AddSingleton&lt;IDetectionEngine, EmberOnnxEngine&gt;();   // une ligne
     <tr><td>4</td><td>Clé BadUSB</td><td><code>04-badusb-hid</code></td><td>La frappe automatique est stoppée net ; alerte « Frappe automatique bloquée ».</td><td><span class="pill ok">Prêt</span></td></tr>
     <tr><td>5</td><td>Injection en mémoire (fileless)</td><td><code>09-injection-memoire</code></td><td>Un programme qui cache un faux exécutable dans sa mémoire est arrêté au prochain scan (moins de 50 s) ; alerte « Code injecté ».</td><td><span class="pill ok">Prêt</span></td></tr>
     <tr><td>6</td><td>Phishing visuel (OCR)</td><td><code>06-phishing-visuel</code></td><td>L'extension signale une fausse page de connexion.</td><td><span class="pill warn">Hôte à enregistrer</span></td></tr>
-    <tr><td>7</td><td>Vol de mots de passe du navigateur</td><td><code>07-vol-identifiants</code></td><td>Prévu : la lecture de « Login Data » par un autre programme que le navigateur est bloquée.</td><td><span class="pill bad">Étape 8</span></td></tr>
+    <tr><td>7</td><td>Vol de mots de passe du navigateur</td><td><code>07-vol-identifiants</code></td><td>Le faux voleur lit le profil leurre : il est arrêté dès la lecture ; alerte « Vol d'identifiants bloqué ».</td><td><span class="pill ok">Prêt</span></td></tr>
     <tr><td>8</td><td>Crypto-clipper</td><td><code>05-crypto-clipper</code></td><td>L'adresse Bitcoin remplacée est remise d'origine instantanément.</td><td><span class="pill ok">Prêt</span></td></tr>
     <tr><td>9</td><td>Persistance au démarrage</td><td><code>03-persistance</code></td><td>Alerte « Nouvelle persistance » en quelques secondes.</td><td><span class="pill warn">Alerte (pop-up prévue)</span></td></tr>
     <tr><td>10</td><td>Accès à la caméra</td><td>—</td><td>Alerte « Webcam utilisée » ; bouton de coupure prévu.</td><td><span class="pill warn">Détection seule</span></td></tr>
@@ -350,7 +351,7 @@ services.AddSingleton&lt;IDetectionEngine, EmberOnnxEngine&gt;();   // une ligne
 <ol class="steps">
   <li>Montrer le tableau de bord : modules actifs, service connecté, auto-défense active.</li>
   <li>Analyser un dossier d'échantillons (EICAR et fichiers de test) : verdicts, score, « preuve forte », explication par l'IA.</li>
-  <li>Lancer les scénarios 1, 2, 4, 5 et 8 : chaque fois, l'alerte apparaît en direct et la menace est neutralisée.</li>
+  <li>Lancer les scénarios 1, 2, 4, 5, 7 et 8 : chaque fois, l'alerte apparaît en direct et la menace est neutralisée.</li>
   <li>Scénario 3 en dernier : tenter de tuer CoreGuard, échouer, puis l'arrêter proprement avec le mot de passe.</li>
 </ol>
 
@@ -359,7 +360,6 @@ services.AddSingleton&lt;IDetectionEngine, EmberOnnxEngine&gt;();   // une ligne
 <table>
   <thead><tr><th>Étape</th><th>Contenu</th></tr></thead>
   <tbody>
-    <tr><td>8</td><td>Anti-infostealer : ACL et audit sur <code>Login Data</code>, <code>Local State</code> et <code>Cookies</code> (Chrome, Edge, Brave).</td></tr>
     <tr><td>9</td><td>Privacy Guard actif : bouton « Couper » la caméra ou le micro.</td></tr>
     <tr><td>10</td><td>Persistance interactive : pop-up Autoriser / Bloquer, retrait de l'entrée, dossier Startup.</td></tr>
     <tr><td>11</td><td>Extension : script d'enregistrement de l'hôte, coffre-fort branché à l'auto-remplissage, verdicts affichés dans l'UI.</td></tr>
@@ -394,7 +394,7 @@ services.AddSingleton&lt;IDetectionEngine, EmberOnnxEngine&gt;();   // une ligne
   </tbody>
 </table>
 
-<footer>CoreGuard — document généré à partir du dépôt (branche <code>main</code>, après l'étape 7). Détails techniques et état exact : <code>docs/AUDIT.md</code>, <code>docs/MODULES.md</code>, <code>demo/README.md</code>.</footer>
+<footer>CoreGuard — document généré à partir du dépôt (branche <code>main</code>, après l'étape 8). Détails techniques et état exact : <code>docs/AUDIT.md</code>, <code>docs/MODULES.md</code>, <code>demo/README.md</code>.</footer>
 </main>
 </div>
 </body>

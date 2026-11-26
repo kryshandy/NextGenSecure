@@ -117,7 +117,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IPageViewModel
             : $"Service connecté (PID {s.ProcessId}). Auto-défense : {selfDefense}. "
               + (s.StopPasswordConfigured ? "Mot de passe de protection configuré." : "Aucun mot de passe : arrêt impossible depuis l'interface.")
               + (s.Modules.FirstOrDefault(m => m.Name == CoreGuard.Ipc.ServiceModules.Amsi) is { } amsi ? $" AMSI : {amsi.Text}." : "")
-              + (s.Modules.FirstOrDefault(m => m.Name == CoreGuard.Ipc.ServiceModules.Memory) is { } memory ? $" Mémoire : {memory.Text}." : "");
+              + (s.Modules.FirstOrDefault(m => m.Name == CoreGuard.Ipc.ServiceModules.Memory) is { } memory ? $" Mémoire : {memory.Text}." : "")
+              + (s.Modules.FirstOrDefault(m => m.Name == CoreGuard.Ipc.ServiceModules.Credentials) is { } creds ? $" Identifiants : {creds.Text}." : "");
         StopProtectionCommand.NotifyCanExecuteChanged();
     }
 

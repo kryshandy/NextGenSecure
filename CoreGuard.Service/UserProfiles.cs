@@ -20,6 +20,23 @@ public static class UserProfiles
         ("Personal", "Documents"), ("Desktop", "Desktop"), ("My Pictures", "Pictures")
     ];
 
+    /// <summary>Racines des profils réels de la machine (C:\Users\nom), comptes système exclus.</summary>
+    public static IReadOnlyList<string> ProfileRoots()
+    {
+        var result = new List<string>();
+        using var list = Registry.LocalMachine.OpenSubKey(ProfileListKey);
+        if (list is null) return result;
+        foreach (string sid in list.GetSubKeyNames())
+        {
+            if (!sid.StartsWith("S-1-5-21-", StringComparison.Ordinal)) continue;
+            using var key = list.OpenSubKey(sid);
+            if (key?.GetValue("ProfileImagePath") is not string raw) continue;
+            string profile = Environment.ExpandEnvironmentVariables(raw);
+            if (Directory.Exists(profile)) result.Add(profile);
+        }
+        return result;
+    }
+
     public static IReadOnlyList<string> CanaryFolders()
     {
         var result = new List<string>();

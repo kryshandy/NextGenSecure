@@ -1,13 +1,13 @@
 # Audit CoreGuard — alignement sur l'architecture consolidée
 
-*Audit du 24/11/2026 (commit `c0e9def`), mis à jour le 26/11/2026 après les étapes 1 à 7 du plan. Toutes les affirmations ci-dessous viennent d'une lecture du code et d'une exécution de `dotnet build` / `dotnet test`.*
+*Audit du 24/11/2026 (commit `c0e9def`), mis à jour le 26/11/2026 après les étapes 1 à 8 du plan. Toutes les affirmations ci-dessous viennent d'une lecture du code et d'une exécution de `dotnet build` / `dotnet test`.*
 
 ## Synthèse
 
 | Point | Constat |
 |---|---|
 | Compilation | `dotnet build AntivirusIA.slnx` : **0 erreur, 0 avertissement** (18 projets). |
-| Tests | `dotnet test` : **329 tests verts** (84 socle + 57 Behavior + 38 Extension + 24 Privacy + 23 Ipc + 22 Service + 20 RealTime + 13 Memory + 11 Vault + 10 Network + 10 Response + 10 Devices + 7 AmsiProvider sur la DLL native réelle). |
+| Tests | `dotnet test` : **341 tests verts** (84 socle + 57 Behavior + 38 Extension + 33 Service + 24 Privacy + 23 Ipc + 21 RealTime + 13 Memory + 11 Vault + 10 Network + 10 Response + 10 Devices + 7 AmsiProvider sur la DLL native réelle). |
 | Ring 0 | Aucun code ne référence de driver : rien ne bloque sans `CoreGuard.Driver`. L'abstraction **`IKernelActionProvider`** (Core) est en place, avec **`UserModeActionProvider`** (CoreGuard.Response) câblé par défaut. |
 | Composants | Les 3 composants existent. **`CoreGuard.Service`** (Worker Service LocalSystem, session 0) héberge la télémétrie ETW et la réponse associée ; l'UI s'y connecte par named pipe et garde les modules liés à la session (presse-papiers, caméra/micro, canaris, téléchargements, persistance HKCU). Sans service, l'UI reprend ETW elle-même. |
 | Framework | Le code cible **.NET 10** (LTS), pas .NET 8/9. Aucune raison de redescendre : .NET 10 est la LTS actuelle et toutes les dépendances le supportent. |
@@ -34,7 +34,7 @@ Légende des états : **Complet** (fait ce que la spec demande) · **Partiel** (
 | 10 | Moniteur BadUSB | `CoreGuard.Devices/*` | **Complet** | Hook clavier bas niveau (WH_KEYBOARD_LL) dans la session de l'utilisateur : analyse de cadence sur 30 frappes (débit > 200 car/s, ou ≥ 40 car/s avec coefficient de variation < 0,3), répétitions de touche ignorées ; à la détection, toutes les frappes sont avalées 10 s (prolongé tant que l'injection continue). Nouveau clavier branché (GetRawInputDeviceList) : alerte + vigilance 60 s (seuil abaissé à 25 car/s). Essai réel : spécimen 04 détecté et bloqué. Limite : la saisie automatique d'un gestionnaire de mots de passe peut être bloquée (module désactivable). |
 | 11 | Auto-défense (watchdog, ACL, HMAC) | `CoreGuard.Service/Watchdog.cs`, `ServiceHost.cs`, `CoreGuard.Ipc/StopAuthentication.cs` | **Complet (user-mode)** | DACL durcie du service et du watchdog (taskkill/Stop-Process : accès refusé, vérifié) ; watchdog mutuel (chacun relance l'autre, vérifié) ; `sc stop` refusé (`CanStop = false`) ; arrêt uniquement par mot de passe (défi-réponse HMAC, nonce unique, verrouillage après 5 échecs) qui prévient le watchdog par un signal HMAC. Limite : un administrateur avec SeDebugPrivilege peut encore tuer les deux processus simultanément (le gestionnaire de services relance alors le service). |
 | 12 | Vault | `CoreGuard.Vault/Vault.cs` | **Partiel** | Argon2id + AES-256-GCM + SQLite : solide et testé. **Pas d'ACL NTFS**, **pas branché à l'UI**, l'hôte Native Messaging utilise `NullCredentialProvider` (l'auto-fill ne renvoie jamais rien). |
-| 13 | Anti-infostealer navigateur | — | **Absent** | Ni ACL sur `Login Data` / `Local State` / `Cookies`, ni audit des lectures. Seule la règle de contenu `Stealer-BrowserCredentials` (statique) existe. |
+| 13 | Anti-infostealer navigateur | `CoreGuard.Service/CredentialGuard.cs`, `CredentialTargets.cs`, `CredentialAccessPolicy.cs` | **Complet (user-mode)** | Audit NTFS **en lecture** (SACL ReadData + événement 4663 = PID exact) sur `Login Data`, `Local State`, `Cookies`, `Web Data` (Chrome, Edge, Brave) et `logins.json`, `key4.db`, `cookies.sqlite` (Firefox) de chaque profil, réappliqué toutes les 2 min. Lecteur autorisé : navigateur reconnu par nom **et** signature Authenticode de l'éditeur attendu, Defender et l'indexation depuis les dossiers système ; tout autre lecteur (programme inconnu, PowerShell, `cmd /c copy`…) est **arrêté**. **Profil leurre Chromium** (créé seulement si Chromium n'est pas installé) : tout lecteur est arrêté. Pas d'ACL préventive : navigateur et voleur tournent sous le même compte, une ACL ne peut pas les distinguer ; la lecture a lieu avant l'arrêt (conseil de changer les mots de passe). Essai réel en console : 28 fichiers inventoriés, leurre créé et retiré ; arrêt à vérifier avec le service installé. |
 | 14 | Anti-phishing visuel | `CoreGuard.Extension/*` | **Partiel** | Levenshtein, homographes, OCR Windows, QR (ZXing) : OK et testés. L'hôte n'est **pas enregistré** automatiquement (manifeste + clé de registre à créer, voir `INSTALL.txt`) et les verdicts ne remontent pas dans l'UI. |
 | 15 | Presse-papiers intelligent | `CoreGuard.Privacy/ClipboardGuardian.cs` | **Complet** | `AddClipboardFormatListener`, restauration anti-clipper, vidage des secrets à 30 s. |
 | 16 | Privacy Guard | `CoreGuard.Privacy/SensorMonitor.cs` | **Partiel** | Lecture du `ConsentStore` par scrutation : OK. **Pas de bouton de coupure** (ni kill du processus, ni désactivation du périphérique). |
@@ -59,7 +59,7 @@ Légende des états : **Complet** (fait ce que la spec demande) · **Partiel** (
 | `AntivirusIA.UI` | App (composition root DI), 5 vues, ViewModels, Services (Scan, Protection, AlertHub, Settings, Theme…) | Partiel : fonctionnel ; refonte visuelle en cours |
 | `CoreGuard.Response` | UserModeActionProvider (arrêt, suspension, blocage réseau, ACL NTFS, DACL de processus), Native | Complet pour l'étape 1 |
 | `CoreGuard.Ipc` | IpcContract (trames, messages), PipeServer (ACL, diffusion), ServiceClient (vérification session 0), StopAuthentication (PBKDF2 + HMAC) | Complet (état, alertes, arrêt authentifié) |
-| `CoreGuard.Service` | Program (hôte + CLI), ProtectionWorker (ETW, arrêt VSS, pipe, arrêt authentifié, AMSI), Watchdog, ServiceHost, CanaryGuard, UserProfiles, ScriptScanner | Partiel : persistance HKLM et réseau restent à migrer |
+| `CoreGuard.Service` | Program (hôte + CLI), ProtectionWorker, Watchdog, ServiceHost, CanaryGuard, UserProfiles, ScriptScanner, MemoryGuard, CredentialGuard / CredentialTargets / CredentialAccessPolicy | Partiel : persistance HKLM et réseau restent à migrer |
 | `CoreGuard.AmsiProvider` | ComServer (DllGetClassObject, fabrique, IAntimalwareProvider), ScanClient (pipe, contrôle session 0, fail-open) | Complet (x64, non signé) |
 | `CoreGuard.Devices` | KeystrokeCadenceAnalyzer, KeyboardInjectionGuard (logique pure), BadUsbMonitor (hook WH_KEYBOARD_LL, claviers branchés) | Complet |
 | `CoreGuard.Memory` | MemoryRegionClassifier (logique pure), ProcessMemoryScanner (VirtualQueryEx / ReadProcessMemory) | Complet |
@@ -108,7 +108,7 @@ public interface IKernelActionProvider
 | 4 | BadUSB HID | ✅ `04` | ✅ cadence de frappe | ✅ frappes avalées 10 s | Lancer le spécimen de façon interactive (il n'injecte que si sa fenêtre a le focus) |
 | 5 | Injection mémoire | ✅ `09` | ✅ image PE en mémoire privée | ✅ processus hôte arrêté (≤ 50 s) | Montrer l'alerte « Code injecté » dans l'UI |
 | 6 | Phishing OCR | ✅ `06` | ✅ via l'extension, si l'hôte est enregistré | n/a (alerte) | Script d'installation de l'hôte, remontée UI |
-| 7 | Anti-Infostealer | ✅ `07` | ❌ (aucun audit d'accès) | ❌ | ACL + audit SACL/ETW fichier |
+| 7 | Anti-Infostealer | ✅ `07` (corrigé) | ✅ lecture du leurre / des bases par un non-navigateur | ✅ voleur arrêté (service installé + audit) | Vérifier avec le service installé |
 | 8 | Crypto-Clipper | ✅ `05` | ✅ | ✅ restauration | — (démontrable) |
 | 9 | Persistance | ✅ `03` | ✅ (≤ 5 s) | ❌ | Pop-up Autoriser/Bloquer + retrait |
 | 10 | Privacy Guard caméra | ❌ | ✅ si une appli ouvre la caméra | ❌ | Bouton de coupure |
@@ -126,7 +126,7 @@ Chaque étape est livrable et testable seule ; l'ordre minimise les dépendances
 5. ✅ **Fournisseur AMSI** : DLL NativeAOT `CoreGuard.AmsiProvider` (COM in-process, enregistrée sous `HKLM\SOFTWARE\Microsoft\AMSI\Providers` par `install-service.ps1`), analyse côté service (`ScriptScanner` : règles + désobfuscation Base64), alerte dans l'UI. *Fait le 26/11/2026.*
 6. ✅ **Moniteur BadUSB** : `CoreGuard.Devices` (analyse de cadence + blocage par le hook clavier, détection des nouveaux claviers), module « Clavier (BadUSB) » dans l'UI. *Fait le 26/11/2026.*
 7. ✅ **Scanner mémoire** : `CoreGuard.Memory` (classement des régions, scan des processus) + `MemoryGuard` dans le service (scan toutes les 30 s, arrêt sur image PE en mémoire privée), spécimen `demo/09-injection-memoire`. *Fait le 26/11/2026.*
-8. **Anti-infostealer** : ACL sur les fichiers des profils Chrome/Edge/Brave (accès réservé au navigateur via le service), SACL d'audit + lecture des événements 4663, ou ETW `Microsoft-Windows-Kernel-File` ; alerte sur tout processus non-navigateur. *Scénario 7.*
+8. ✅ **Anti-infostealer** : audit en lecture des fichiers d'identifiants de tous les navigateurs et profils, politique « navigateur signé uniquement », profil leurre Chromium, arrêt du voleur ; spécimen 07 corrigé (ne lit que le leurre, après vérification du marqueur). *Fait le 26/11/2026.*
 9. **Privacy Guard actif** : bouton « Couper » (kill du processus ou désactivation du périphérique via SetupAPI) + badge. Spécimen : ouverture de la caméra par un petit outil de test. *Scénario 10.*
 10. **Persistance interactive** : pop-up Autoriser/Bloquer, retrait de la valeur Run / de la tâche, dossier Startup, explication LLM en une ligne. *Scénario 9.*
 11. **Extension** : script d'enregistrement de l'hôte Native Messaging, branchement du Vault (`ICredentialProvider`), remontée des verdicts dans l'UI. *Scénario 6.*

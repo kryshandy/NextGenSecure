@@ -84,7 +84,7 @@ CoreGuard.sln
 - ✅ **Auto-défense** du service : DACL durcie (taskkill refusé), watchdog mutuel (chaque processus relance l'autre), `sc stop` refusé, arrêt uniquement par **mot de passe** (défi-réponse HMAC, verrouillage après 5 échecs)
 - ✅ **Moniteur BadUSB** : un faux clavier USB qui tape à une vitesse surhumaine (ou à un rythme de machine) est bloqué 10 s ; un nouveau clavier branché déclenche une alerte et une vigilance renforcée
 - ✅ **Scan mémoire** (menaces sans fichier) : toutes les 30 s, le service parcourt la mémoire des processus ; un exécutable chargé hors de tout fichier (DLL réflective, process hollowing) fait arrêter le processus
-- ⏳ Anti-infostealer
+- ✅ **Anti-infostealer** : la lecture des mots de passe, cookies et cartes enregistrés dans Chrome, Edge, Brave ou Firefox par un programme qui n'est pas un navigateur signé fait arrêter ce programme ; un faux profil Chromium sert de leurre
 
 **Modules utilisateur**
 - ✅ **Presse-papiers intelligent** (anti-crypto-clipper, vidage des secrets après 30 s)
@@ -141,7 +141,7 @@ dotnet run --project AntivirusIA.UI
 dotnet test AntivirusIA.slnx
 ```
 
-329 tests MSTest (moteurs, quarantaine, règles, comportement, réseau, réponse, IPC, service, fournisseur AMSI natif, vie privée, coffre, extension). Procédure de test manuelle : [`docs/TESTING.md`](docs/TESTING.md).
+341 tests MSTest (moteurs, quarantaine, règles, comportement, réseau, réponse, IPC, service, fournisseur AMSI natif, vie privée, coffre, extension). Procédure de test manuelle : [`docs/TESTING.md`](docs/TESTING.md).
 
 ---
 

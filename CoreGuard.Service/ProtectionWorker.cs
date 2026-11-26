@@ -38,6 +38,7 @@ public sealed class ProtectionWorker(
     private EtwProcessMonitor? _etw;
     private CanaryGuard? _canaries;
     private MemoryGuard? _memory;
+    private CredentialGuard? _credentials;
     private int _stopAccepted;
     private int _amsiScanned, _amsiBlocked;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> _amsiAlerted = new();
@@ -53,6 +54,7 @@ public sealed class ProtectionWorker(
         StartBehavior();
         StartCanaries();
         StartMemoryScan();
+        StartCredentialGuard();
         if (options.Supervise) await StartSelfDefenseAsync();
         logger.LogInformation("CoreGuard démarré (PID {Pid}, élevé : {Elevated}, actions : {Provider}, auto-défense : {Harden}, mot de passe : {Pwd}).",
             Environment.ProcessId, Environment.IsPrivilegedProcess, actions.Name, options.Harden, stopAuthenticator.IsConfigured);
@@ -184,6 +186,23 @@ public sealed class ProtectionWorker(
         _server?.BroadcastStatus();
     }
 
+    // ---------- Anti-infostealer ----------
+
+    private void StartCredentialGuard()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        try
+        {
+            var guard = new CredentialGuard(actions, Publish, logger);
+            guard.Start();
+            _credentials = guard;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            logger.LogError("Anti-infostealer indisponible : {Message}", ex.Message);
+        }
+    }
+
     // ---------- Scan mémoire (fileless) ----------
 
     private void StartMemoryScan()
@@ -266,11 +285,15 @@ public sealed class ProtectionWorker(
         var memory = memoryGuard is null
             ? new ModuleStatus(ServiceModules.Memory, "Unavailable", "Scan mémoire non démarré")
             : new ModuleStatus(ServiceModules.Memory, "Active", memoryGuard.StatusText);
+        var credentialGuard = _credentials;
+        var credentials = credentialGuard is { Listening: true, WatchedFiles: > 0 }
+            ? new ModuleStatus(ServiceModules.Credentials, "Active", credentialGuard.StatusText)
+            : new ModuleStatus(ServiceModules.Credentials, "Unavailable", credentialGuard?.StatusText ?? "Non démarré");
         var amsi = AmsiProviderRegistered()
             ? new ModuleStatus(ServiceModules.Amsi, "Active", $"Fournisseur AMSI enregistré : {_amsiScanned} contenu(s) analysé(s), {_amsiBlocked} bloqué(s)")
             : new ModuleStatus(ServiceModules.Amsi, "Unavailable", "Fournisseur AMSI non enregistré (scripts/install-service.ps1)");
         return new ServiceStatus(IpcContract.ProtocolVersion, Environment.ProcessId, _startedUtc,
-            actions.Name, actions.IsKernelBacked, Environment.IsPrivilegedProcess, [behavior, canaries, amsi, memory, selfDefense])
+            actions.Name, actions.IsKernelBacked, Environment.IsPrivilegedProcess, [behavior, canaries, credentials, amsi, memory, selfDefense])
         {
             StopPasswordConfigured = stopAuthenticator.IsConfigured
         };
@@ -286,6 +309,8 @@ public sealed class ProtectionWorker(
         _canaries?.Dispose(); // retire les canaris du disque
         _memory?.Dispose();
         _memory = null;
+        _credentials?.Dispose(); // retire le profil leurre
+        _credentials = null;
         _canaries = null;
         if (_server is not null) await _server.DisposeAsync();
         _server = null;

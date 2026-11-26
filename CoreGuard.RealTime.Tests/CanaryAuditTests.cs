@@ -1,4 +1,4 @@
-namespace CoreGuard.RealTime.Tests;
+﻿namespace CoreGuard.RealTime.Tests;
 
 [TestClass]
 public sealed class CanaryAuditTests
@@ -83,5 +83,13 @@ public sealed class CanaryAuditTests
     public void La_lecture_de_la_strategie_ne_leve_pas_d_exception()
     {
         _ = CanaryAuditWatcher.IsFileSystemAuditEnabled(); // null sans droits, sinon vrai/faux
+    }
+
+    [TestMethod]
+    public void En_mode_lecture_seule_la_lecture_est_retenue_et_l_ecriture_ignoree()
+    {
+        var read = CanaryAuditWatcher.Parse([Canary, (ulong)200, @"C:\Temp\stealer.exe", "0x1"], When, IsCanary, CanaryAuditWatcher.IsReadAccess);
+        Assert.AreEqual(200, read!.Pid);
+        Assert.IsNull(CanaryAuditWatcher.Parse([Canary, (ulong)200, "x.exe", "0x2"], When, IsCanary, CanaryAuditWatcher.IsReadAccess));
     }
 }

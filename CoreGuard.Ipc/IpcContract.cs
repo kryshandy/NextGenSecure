@@ -138,4 +138,5 @@ public static class ServiceModules
     public const string Canaries = "Canaries";
     public const string Amsi = "Amsi";
     public const string Memory = "Memory";
+    public const string Credentials = "Credentials";
 }

@@ -22,7 +22,7 @@ public sealed partial class CanaryAuditWatcher : IDisposable
 {
     // Accès audités : WriteData, AppendData, DELETE (un renommage exige DELETE). Pas la lecture ni les attributs :
     // l'indexation, l'antivirus ou l'Explorateur qui lisent un fichier ne doivent pas être pris pour un ransomware.
-    internal const uint WriteData = 0x2, AppendData = 0x4, Delete = 0x10000;
+    internal const uint ReadData = 0x1, WriteData = 0x2, AppendData = 0x4, Delete = 0x10000;
     private const FileSystemRights AuditedRights = FileSystemRights.WriteData | FileSystemRights.AppendData | FileSystemRights.Delete;
 
     // Sous-catégorie « Système de fichiers » (indépendante de la langue de Windows)
@@ -37,22 +37,31 @@ public sealed partial class CanaryAuditWatcher : IDisposable
     ]);
 
     private readonly Func<string, bool> _isCanary;
+    private readonly Func<uint, bool> _isRelevant;
     private EventLogWatcher? _watcher;
 
-    /// <param name="isCanary">Filtre : seuls les accès aux canaris sont remontés.</param>
-    public CanaryAuditWatcher(Func<string, bool> isCanary) => _isCanary = isCanary;
+    /// <param name="isCanary">Filtre : seuls les accès aux fichiers surveillés sont remontés.</param>
+    /// <param name="isRelevantAccess">Accès retenus (défaut : écriture / ajout / suppression, cf. <see cref="IsWriteAccess"/>).</param>
+    public CanaryAuditWatcher(Func<string, bool> isCanary, Func<uint, bool>? isRelevantAccess = null)
+    {
+        _isCanary = isCanary;
+        _isRelevant = isRelevantAccess ?? IsWriteAccess;
+    }
 
     public event EventHandler<CanaryAccess>? Access;
     public event EventHandler<string>? Warning;
 
     /// <summary>Pose la règle d'audit sur un canari. Faux (avec la raison) si le privilège manque.</summary>
-    public static bool TryEnableAudit(string path, out string? error)
+    public static bool TryEnableAudit(string path, out string? error) => TryEnableAudit(path, AuditedRights, out error);
+
+    /// <summary>Pose une règle d'audit (succès, tout le monde) pour les droits donnés.</summary>
+    public static bool TryEnableAudit(string path, FileSystemRights rights, out string? error)
     {
         try
         {
             var security = new FileSecurity();
             security.AddAuditRule(new FileSystemAuditRule(new SecurityIdentifier(WellKnownSidType.WorldSid, null),
-                AuditedRights, AuditFlags.Success));
+                rights, AuditFlags.Success));
             new FileInfo(path).SetAccessControl(security); // seule la SACL est modifiée (DACL intacte)
             error = null;
             return true;
@@ -109,7 +118,7 @@ public sealed partial class CanaryAuditWatcher : IDisposable
             if (e.EventRecord is not EventLogRecord record) return;
             using (record)
             {
-                var access = Parse(record.GetPropertyValues(Selector), record.TimeCreated?.ToUniversalTime() ?? DateTime.UtcNow, _isCanary);
+                var access = Parse(record.GetPropertyValues(Selector), record.TimeCreated?.ToUniversalTime() ?? DateTime.UtcNow, _isCanary, _isRelevant);
                 if (access is not null) Access?.Invoke(this, access);
             }
         }
@@ -120,12 +129,13 @@ public sealed partial class CanaryAuditWatcher : IDisposable
     }
 
     /// <summary>Interprète les champs d'un événement 4663 ; null si ce n'est pas une écriture sur un canari.</summary>
-    internal static CanaryAccess? Parse(IList<object?> values, DateTime whenUtc, Func<string, bool> isCanary)
+    internal static CanaryAccess? Parse(IList<object?> values, DateTime whenUtc, Func<string, bool> isCanary,
+        Func<uint, bool>? isRelevantAccess = null)
     {
         if (values.Count < 4 || values[0] is not string path || !isCanary(path)) return null;
 
         uint mask = ToUInt32(values[3]);
-        if (!IsWriteAccess(mask)) return null;
+        if (!(isRelevantAccess ?? IsWriteAccess)(mask)) return null;
 
         long pid = ToInt64(values[1]);
         if (pid <= 0 || pid > int.MaxValue) return null;
@@ -133,7 +143,10 @@ public sealed partial class CanaryAuditWatcher : IDisposable
         return new CanaryAccess(path, (int)pid, values[2] as string ?? "?", mask, whenUtc);
     }
 
-    internal static bool IsWriteAccess(uint mask) => (mask & (WriteData | AppendData | Delete)) != 0;
+    public static bool IsWriteAccess(uint mask) => (mask & (WriteData | AppendData | Delete)) != 0;
+
+    /// <summary>Lecture du contenu (ReadData) : utilisé pour les fichiers d'identifiants des navigateurs.</summary>
+    public static bool IsReadAccess(uint mask) => (mask & ReadData) != 0;
 
     // Les champs « HexInt » arrivent selon les versions en nombre ou en chaîne « 0x… »
     private static long ToInt64(object? value) => value switch
