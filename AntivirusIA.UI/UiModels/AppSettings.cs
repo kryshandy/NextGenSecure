@@ -22,6 +22,8 @@ public sealed partial class AppSettings : ObservableObject
     [ObservableProperty] private bool _sensorsEnabled = true;
     [ObservableProperty] private bool _paranoiaEnabled;
     [ObservableProperty] private bool _badUsbEnabled = true;
+    [ObservableProperty] private bool _lockOnBadUsb;
+    [ObservableProperty] private bool _lockdownCutsNetwork;
 
     // Les seuils restent cohérents : suspect < malveillant, bornés à 1..100
     partial void OnThresholdSuspectChanged(int value)

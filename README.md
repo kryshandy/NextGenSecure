@@ -83,6 +83,7 @@ CoreGuard.sln
 - 🟡 Pare-feu : règles par application et **kill switch** via le pare-feu Windows ; WFP natif prévu
 - ✅ **Auto-défense** du service : DACL durcie (taskkill refusé), watchdog mutuel (chaque processus relance l'autre), `sc stop` refusé, arrêt uniquement par **mot de passe** (défi-réponse HMAC, verrouillage après 5 échecs)
 - ✅ **Moniteur BadUSB** : un faux clavier USB qui tape à une vitesse surhumaine (ou à un rythme de machine) est bloqué 10 s ; un nouveau clavier branché déclenche une alerte et une vigilance renforcée
+- ✅ **Verrouillage d'urgence du PC** : bouton, BadUSB détecté ou ordre à distance (dossier synchronisé, opt-in) ; écran CoreGuard plein écran, raccourcis système bloqués, clés USB et nouveaux périphériques refusés, réseau coupé en option ; déverrouillage uniquement par le mot de passe de protection
 - ✅ **Scan mémoire** (menaces sans fichier) : toutes les 30 s, le service parcourt la mémoire des processus ; un exécutable chargé hors de tout fichier (DLL réflective, process hollowing) fait arrêter le processus
 - ✅ **Anti-infostealer** : la lecture des mots de passe, cookies et cartes enregistrés dans Chrome, Edge, Brave ou Firefox par un programme qui n'est pas un navigateur signé fait arrêter ce programme ; un faux profil Chromium sert de leurre
 
@@ -144,7 +145,7 @@ dotnet run --project AntivirusIA.UI
 dotnet test AntivirusIA.slnx
 ```
 
-365 tests MSTest (moteurs, quarantaine, règles, comportement, réseau, réponse, IPC, service, fournisseur AMSI natif, vie privée, coffre, extension). Procédure de test manuelle : [`docs/TESTING.md`](docs/TESTING.md).
+379 tests MSTest (moteurs, quarantaine, règles, comportement, réseau, réponse, IPC, service, fournisseur AMSI natif, vie privée, coffre, extension). Procédure de test manuelle : [`docs/TESTING.md`](docs/TESTING.md).
 
 ---
 

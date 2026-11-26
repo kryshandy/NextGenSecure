@@ -63,9 +63,10 @@ public sealed class ProtectionService : IDisposable
     public event Action? ModulesChanged;
 
     private readonly ServiceLink _service;
+    private readonly LockdownUiController _lockdown;
 
     public ProtectionService(AppSettings settings, AlertHub alerts, ScanService scan, UiThreatResponder responder, INetworkGuard network,
-        ServiceLink service)
+        ServiceLink service, LockdownUiController lockdown)
     {
         _settings = settings;
         _alerts = alerts;
@@ -73,6 +74,7 @@ public sealed class ProtectionService : IDisposable
         _responder = responder;
         _network = network;
         _service = service;
+        _lockdown = lockdown;
         Modules = [Files, Canaries, Behavior, Persistence, Network, Clipboard, Sensors, BadUsb, Paranoia];
 
         // Le service (SYSTEM) prend la télémétrie ETW dès qu'il est joignable, et la rend s'il disparaît
@@ -306,6 +308,10 @@ public sealed class ProtectionService : IDisposable
         Guard(BadUsb, () =>
         {
             var monitor = new CoreGuard.Devices.BadUsbMonitor();
+            monitor.InjectionDetected += (_, _) =>
+            {
+                if (_settings.LockOnBadUsb) _ = _lockdown.LockNowAsync("BadUSB détecté (frappe automatique)", _settings.LockdownCutsNetwork);
+            };
             monitor.InjectionDetected += (_, a) => _alerts.Publish(AlertSeverity.Critical, "BadUSB",
                 "Frappe automatique bloquée",
                 $"{a.Verdict.CharsPerSecond:F0} car/s ({(a.Verdict.Kind == CoreGuard.Devices.InjectionKind.ExtremeRate ? "débit surhumain" : "cadence de machine")}"

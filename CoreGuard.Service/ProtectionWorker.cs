@@ -26,6 +26,7 @@ public sealed class ProtectionWorker(
     StopAuthenticator stopAuthenticator,
     WatchdogSupervisor watchdog,
     ScriptScanner scripts,
+    LockdownController lockdown,
     ServiceOptions options,
     IHostApplicationLifetime lifetime,
     ILogger<ProtectionWorker> logger) : BackgroundService
@@ -39,6 +40,8 @@ public sealed class ProtectionWorker(
     private CanaryGuard? _canaries;
     private MemoryGuard? _memory;
     private CredentialGuard? _credentials;
+    private RemoteLockWatcher? _remoteLock;
+    private DateTime _lastEngage = DateTime.MinValue;
     private int _stopAccepted;
     private int _amsiScanned, _amsiBlocked;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> _amsiAlerted = new();
@@ -55,6 +58,7 @@ public sealed class ProtectionWorker(
         StartCanaries();
         StartMemoryScan();
         StartCredentialGuard();
+        StartLockdown();
         if (options.Supervise) await StartSelfDefenseAsync();
         logger.LogInformation("CoreGuard démarré (PID {Pid}, élevé : {Elevated}, actions : {Provider}, auto-défense : {Harden}, mot de passe : {Pwd}).",
             Environment.ProcessId, Environment.IsPrivilegedProcess, actions.Name, options.Harden, stopAuthenticator.IsConfigured);
@@ -110,6 +114,23 @@ public sealed class ProtectionWorker(
                 if (result.Accepted && Interlocked.Exchange(ref _stopAccepted, 1) == 0)
                     _ = StopLegitimatelyAsync();
                 return new IpcEnvelope(IpcContract.Types.StopResult, StopResult: result);
+
+            case IpcContract.Types.LockdownEngage:
+                return new IpcEnvelope(IpcContract.Types.LockdownResult, StopResult: Engage(
+                    Sanitize(request.Lockdown?.Reason) ?? "demande de l'utilisateur", request.Lockdown?.CutNetwork ?? false));
+
+            case IpcContract.Types.UnlockRequest:
+            {
+                StopResult check = stopAuthenticator.Verify(request.Stop);
+                if (!check.Accepted)
+                {
+                    Publish("Critical", "Verrouillage", "Déverrouillage refusé", check.Message);
+                    return new IpcEnvelope(IpcContract.Types.LockdownResult, StopResult: check);
+                }
+                lockdown.Release();
+                Publish("Warning", "Verrouillage", "PC déverrouillé", "Mot de passe de protection vérifié : blocages levés.");
+                return new IpcEnvelope(IpcContract.Types.LockdownResult, StopResult: new StopResult(true, "PC déverrouillé."));
+            }
 
             case IpcContract.Types.AmsiScan:
                 return new IpcEnvelope(IpcContract.Types.AmsiResult, AmsiVerdict: ScanScript(request.Amsi));
@@ -185,6 +206,39 @@ public sealed class ProtectionWorker(
         }
         _server?.BroadcastStatus();
     }
+
+    // ---------- Verrouillage d'urgence ----------
+
+    private void StartLockdown()
+    {
+        lockdown.Warning += w => logger.LogWarning("Verrouillage : {Warning}", w);
+        lockdown.Changed += _ => _server?.BroadcastStatus();
+        lockdown.Reassert(); // verrouillage en cours avant un redémarrage : ré-appliqué
+        if (lockdown.State.Engaged) logger.LogWarning("Verrouillage d'urgence toujours actif (depuis {Since}).", lockdown.State.SinceUtc);
+
+        var remote = RemoteLockConfig.Load(ServiceHost.RemoteLockPath);
+        if (remote is not null && OperatingSystem.IsWindows())
+        {
+            _remoteLock = new RemoteLockWatcher(remote, reason => Engage(reason, cutNetwork: false),
+                (title, detail) => Publish("Critical", "Verrouillage", title, detail), logger);
+            _remoteLock.Start();
+        }
+    }
+
+    private StopResult Engage(string reason, bool cutNetwork)
+    {
+        if (lockdown.State.Engaged) return new StopResult(true, "PC déjà verrouillé.");
+        if (DateTime.UtcNow - _lastEngage < TimeSpan.FromSeconds(10)) return new StopResult(false, "Réessayez dans quelques secondes.");
+        _lastEngage = DateTime.UtcNow;
+        lockdown.Engage(reason, cutNetwork);
+        Publish("Critical", "Verrouillage", "PC verrouillé",
+            $"Motif : {reason}. USB bloqué, nouveaux périphériques refusés{(cutNetwork ? ", réseau coupé" : "")}.");
+        logger.LogWarning("Verrouillage d'urgence : {Reason}", reason);
+        return new StopResult(true, "PC verrouillé.");
+    }
+
+    private static string? Sanitize(string? text) =>
+        string.IsNullOrWhiteSpace(text) ? null : new string(text.Where(c => !char.IsControl(c)).Take(100).ToArray());
 
     // ---------- Anti-infostealer ----------
 
@@ -289,11 +343,16 @@ public sealed class ProtectionWorker(
         var credentials = credentialGuard is { Listening: true, WatchedFiles: > 0 }
             ? new ModuleStatus(ServiceModules.Credentials, "Active", credentialGuard.StatusText)
             : new ModuleStatus(ServiceModules.Credentials, "Unavailable", credentialGuard?.StatusText ?? "Non démarré");
+        var ls = lockdown.State;
+        string remoteText = _remoteLock is null ? "à distance : non configuré" : "à distance : actif";
+        var lockdownModule = ls.Engaged
+            ? new ModuleStatus(ServiceModules.Lockdown, "Active", $"Verrouillé depuis {ls.SinceUtc?.ToLocalTime():HH:mm} : {ls.Reason}")
+            : new ModuleStatus(ServiceModules.Lockdown, "Disabled", $"Déverrouillé ({remoteText})");
         var amsi = AmsiProviderRegistered()
             ? new ModuleStatus(ServiceModules.Amsi, "Active", $"Fournisseur AMSI enregistré : {_amsiScanned} contenu(s) analysé(s), {_amsiBlocked} bloqué(s)")
             : new ModuleStatus(ServiceModules.Amsi, "Unavailable", "Fournisseur AMSI non enregistré (scripts/install-service.ps1)");
         return new ServiceStatus(IpcContract.ProtocolVersion, Environment.ProcessId, _startedUtc,
-            actions.Name, actions.IsKernelBacked, Environment.IsPrivilegedProcess, [behavior, canaries, credentials, amsi, memory, selfDefense])
+            actions.Name, actions.IsKernelBacked, Environment.IsPrivilegedProcess, [behavior, canaries, credentials, amsi, memory, lockdownModule, selfDefense])
         {
             StopPasswordConfigured = stopAuthenticator.IsConfigured
         };
@@ -310,6 +369,7 @@ public sealed class ProtectionWorker(
         _memory?.Dispose();
         _memory = null;
         _credentials?.Dispose(); // retire le profil leurre
+        _remoteLock?.Dispose();
         _credentials = null;
         _canaries = null;
         if (_server is not null) await _server.DisposeAsync();

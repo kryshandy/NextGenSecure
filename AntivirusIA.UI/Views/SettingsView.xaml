@@ -192,6 +192,12 @@
                                      Subtitle="Le service CoreGuard (SYSTEM) refuse les arrêts non autorisés et se relance s'il est tué.">
                         <StackPanel>
                             <TextBlock Text="{Binding ServiceStatus}" Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                            <ctl:SettingRow Title="Verrouillage d'urgence : couper aussi le réseau" Description="Le pare-feu bloque tout le trafic sortant tant que le PC est verrouillé.">
+                                <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding Settings.LockdownCutsNetwork}" AutomationProperties.Name="Couper le réseau au verrouillage"/>
+                            </ctl:SettingRow>
+                            <ctl:SettingRow Title="Verrouiller le PC si un BadUSB est détecté" Description="Une frappe automatique (faux clavier USB) déclenche le verrouillage d'urgence.">
+                                <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding Settings.LockOnBadUsb}" AutomationProperties.Name="Verrouiller si BadUSB"/>
+                            </ctl:SettingRow>
                             <ctl:SettingRow Title="Désactiver la protection" ShowSeparator="False"
                                             Description="Arrête le service et son watchdog. Exige le mot de passe de protection (défi-réponse HMAC : le mot de passe ne transite pas).">
                                 <Button Style="{StaticResource Btn.DangerSoft}" Command="{Binding StopProtectionCommand}"

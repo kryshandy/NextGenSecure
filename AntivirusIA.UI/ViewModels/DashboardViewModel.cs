@@ -27,11 +27,27 @@ public sealed partial class DashboardViewModel : ObservableObject, IPageViewMode
     private readonly DispatcherTimer _refreshTimer;
 
     private readonly AntivirusIA.Core.Interfaces.IKernelActionProvider _actions;
+    private readonly LockdownUiController _lockdown;
+    private readonly AppSettings _lockSettings;
+
+    /// <summary>Verrouillage d'urgence immédiat (déverrouillage : mot de passe de protection).</summary>
+    [RelayCommand]
+    private async Task LockNowAsync()
+    {
+        if (!_dialogs.Confirm("Verrouiller le PC",
+            "Le PC va être verrouillé : écran CoreGuard, clés USB bloquées, nouveaux périphériques refusés"
+            + (_lockSettings.LockdownCutsNetwork ? ", réseau coupé" : "") + ". Seul le mot de passe de protection CoreGuard permettra de le déverrouiller.",
+            "Verrouiller", danger: true))
+            return;
+        await _lockdown.LockNowAsync("verrouillage manuel", _lockSettings.LockdownCutsNetwork);
+    }
 
     public DashboardViewModel(ActivityStats stats, AlertHub hub, ProtectionService protection,
         AppSettings settings, SettingsStore store, ScanViewModel scan, IDialogService dialogs,
-        AntivirusIA.Core.Interfaces.IKernelActionProvider actions)
+        AntivirusIA.Core.Interfaces.IKernelActionProvider actions, LockdownUiController lockdown)
     {
+        _lockdown = lockdown;
+        _lockSettings = settings;
         _actions = actions;
         protection.SensorsChanged += () => UiThread.Post(RefreshSensors);
         Stats = stats;

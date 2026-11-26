@@ -59,6 +59,16 @@ public sealed class ServiceLink : IDisposable
     /// <summary>Vrai si le service assure lui-même la télémétrie ETW des processus.</summary>
     public bool HandlesBehavior => IsConnected && _status!.IsModuleActive(ServiceModules.Behavior);
 
+    /// <summary>Verrouillage d'urgence actif (selon le service).</summary>
+    public bool LockdownEngaged => IsConnected && _status!.IsModuleActive(ServiceModules.Lockdown);
+
+    /// <summary>Texte d'état du verrouillage (motif, heure ; ou état du déclenchement à distance).</summary>
+    public string? LockdownText => _status?.Modules.FirstOrDefault(m => m.Name == ServiceModules.Lockdown)?.Text;
+
+    public Task<StopResult> EngageLockdownAsync(string reason, bool cutNetwork) => _client.EngageLockdownAsync(reason, cutNetwork);
+
+    public Task<StopResult> RequestUnlockAsync(string password) => _client.RequestUnlockAsync(password);
+
     /// <summary>Vrai si le service assure les canaris anti-ransomware.</summary>
     public bool HandlesCanaries => IsConnected && _status!.IsModuleActive(ServiceModules.Canaries);
 

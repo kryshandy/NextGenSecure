@@ -83,6 +83,14 @@
                     <TextBlock Text="Vue d'ensemble de la protection en temps réel." Style="{StaticResource Text.Muted}" Margin="0,4,0,0"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource Btn.DangerSoft}" Command="{Binding LockNowCommand}" Margin="0,0,8,0"
+                            ToolTip="Verrouillage d'urgence : écran CoreGuard, USB bloqué ; déverrouillage par mot de passe de protection"
+                            AutomationProperties.Name="Verrouiller le PC">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource Icon.Lock}" Style="{StaticResource Ico}" Margin="0,0,8,0"/>
+                            <TextBlock Text="Verrouiller le PC"/>
+                        </StackPanel>
+                    </Button>
                     <Button Style="{StaticResource Btn.Secondary}" Command="{Binding ScanFolderCommand}" Margin="0,0,8,0"
                             ToolTip="Choisir un dossier puis l'analyser" AutomationProperties.Name="Analyser un dossier">
                         <StackPanel Orientation="Horizontal">

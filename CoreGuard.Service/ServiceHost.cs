@@ -34,6 +34,8 @@ public static class ServiceHost
     public static bool IsConsoleRun { get; set; }
 
     public static string SecretPath => Path.Combine(DataDirectory, "protection.json");
+    public static string LockdownStatePath => Path.Combine(DataDirectory, "lockdown.json");
+    public static string RemoteLockPath => Path.Combine(DataDirectory, "remote-lock.json");
 
     /// <summary>Pipe utilisé : celui du service installé, ou celui de développement (console / --dev).</summary>
     public static string PipeName => IsWindowsService || !DevMode ? IpcContract.PipeName : IpcContract.DevPipeName;
@@ -93,6 +95,36 @@ public static class ServiceCli
         }
         Console.WriteLine($"Mot de passe de protection enregistré ({ServiceHost.SecretPath}).");
         Console.WriteLine("Redémarrez le service pour qu'il le prenne en compte s'il tourne déjà.");
+        return 0;
+    }
+
+    /// <summary>
+    /// --set-remote-lock &lt;dossier&gt; [&lt;dossier&gt;…] : active le verrouillage à distance par dossier synchronisé
+    /// (administrateur hors --dev). Le code n'est conservé que sous forme d'empreinte PBKDF2.
+    /// </summary>
+    public static int SetRemoteLock(IReadOnlyList<string> folders)
+    {
+        if (!ServiceHost.DevMode && !Environment.IsPrivilegedProcess)
+        {
+            Console.Error.WriteLine("Droits administrateur requis pour configurer le verrouillage à distance.");
+            return 5;
+        }
+        var existing = folders.Where(Directory.Exists).Select(Path.GetFullPath).ToList();
+        if (existing.Count == 0) { Console.Error.WriteLine(@"Aucun dossier existant indiqué (ex. C:\Users\vous\OneDrive\CoreGuard)."); return 2; }
+
+        string code = ReadSecret($"Code de verrouillage à distance ({RemoteLockConfig.MinCodeLength} caractères minimum) : ");
+        string again = ReadSecret("Confirmation : ");
+        if (code != again) { Console.Error.WriteLine("Les codes ne correspondent pas."); return 2; }
+        try
+        {
+            RemoteLockConfig.Create(existing, code).Save(ServiceHost.RemoteLockPath, restrictToAdmins: !ServiceHost.DevMode);
+        }
+        catch (ArgumentException ex) { Console.Error.WriteLine(ex.Message); return 2; }
+
+        Console.WriteLine("Verrouillage à distance configuré. Pour verrouiller le PC depuis votre téléphone : dans l'un de ces dossiers,");
+        Console.WriteLine($"créez un fichier « {RemoteLockConfig.CommandFilePrefix}.txt » contenant uniquement votre code.");
+        foreach (string f in existing) Console.WriteLine("  - " + f);
+        Console.WriteLine("Redémarrez le service pour activer la surveillance.");
         return 0;
     }
 

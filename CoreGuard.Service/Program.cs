@@ -13,6 +13,7 @@ using CoreGuard.Service;
 //   --watchdog <pid>        mode watchdog (lancé par le service lui-même)
 //   --set-password [--dev]  définit le mot de passe de protection (administrateur hors --dev)
 //   --stop [--dev]          demande l'arrêt authentifié du service en cours d'exécution
+//   --set-remote-lock <dossier> [--dev]  active le verrouillage à distance par dossier synchronisé
 //
 // Installation : scripts/install-service.ps1 (administrateur). En développement, l'UI n'accepte un service
 // lancé en console que si elle est compilée en Debug et lancée avec COREGUARD_DEV_SERVICE=1.
@@ -21,6 +22,8 @@ ServiceHost.DevMode = argList.Contains("--dev");
 
 if (argList.Contains("--set-password")) return ServiceCli.SetPassword();
 if (argList.Contains("--stop")) return await ServiceCli.StopAsync();
+int remoteIndex = argList.IndexOf("--set-remote-lock");
+if (remoteIndex >= 0) return ServiceCli.SetRemoteLock(argList.Skip(remoteIndex + 1).Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToList());
 
 int watchdogIndex = argList.IndexOf("--watchdog");
 if (watchdogIndex >= 0)
@@ -60,6 +63,9 @@ builder.Services.AddSingleton<IKernelActionProvider>(sp => sp.GetRequiredService
 // Règles de contenu (Data/rules.json) partagées avec le moteur de scan, appliquées aux scripts soumis par AMSI
 builder.Services.AddSingleton(_ => new AntivirusIA.Engines.PatternRuleEngine(Path.Combine(AppContext.BaseDirectory, "Data", "rules.json")));
 builder.Services.AddSingleton<ScriptScanner>();
+builder.Services.AddSingleton(sp => new LockdownController(
+    OperatingSystem.IsWindows() ? new RegistryLockdownBackend(sp.GetRequiredService<INetworkGuard>()) : throw new PlatformNotSupportedException(),
+    ServiceHost.LockdownStatePath));
 builder.Services.AddHostedService<ProtectionWorker>();
 
 await builder.Build().RunAsync();

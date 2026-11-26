@@ -108,6 +108,40 @@ public sealed partial class ServiceClient : IAsyncDisposable
         }
     }
 
+    /// <summary>Demande le verrouillage d'urgence du PC (aucun mot de passe : verrouiller doit être immédiat).</summary>
+    public async Task<StopResult> EngageLockdownAsync(string reason, bool cutNetwork, CancellationToken ct = default)
+    {
+        if (!IsConnected) return new StopResult(false, "Service CoreGuard non connecté.");
+        await _requestLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            IpcEnvelope reply = await RoundTripAsync(new IpcEnvelope(IpcContract.Types.LockdownEngage,
+                Lockdown: new LockdownRequest(reason, cutNetwork)), ct).ConfigureAwait(false);
+            return reply.StopResult ?? new StopResult(false, reply.Error ?? "Réponse du service invalide.");
+        }
+        catch (TimeoutException) { return new StopResult(false, "Le service ne répond pas."); }
+        finally { _requestLock.Release(); }
+    }
+
+    /// <summary>Déverrouille le PC : même défi-réponse HMAC que l'arrêt (le mot de passe ne quitte pas ce processus).</summary>
+    public async Task<StopResult> RequestUnlockAsync(string password, CancellationToken ct = default)
+    {
+        if (!IsConnected) return new StopResult(false, "Service CoreGuard non connecté.");
+        await _requestLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            IpcEnvelope challengeReply = await RoundTripAsync(new IpcEnvelope(IpcContract.Types.Challenge), ct).ConfigureAwait(false);
+            if (challengeReply.Challenge is not { } challenge)
+                return new StopResult(false, challengeReply.Error ?? "Le service n'a pas fourni de défi.");
+            string proof = await Task.Run(() => StopProtocol.Answer(password, challenge), ct).ConfigureAwait(false);
+            IpcEnvelope verdict = await RoundTripAsync(
+                new IpcEnvelope(IpcContract.Types.UnlockRequest, Stop: new StopRequest(challenge.Nonce, proof)), ct).ConfigureAwait(false);
+            return verdict.StopResult ?? new StopResult(false, verdict.Error ?? "Réponse du service invalide.");
+        }
+        catch (TimeoutException) { return new StopResult(false, "Le service ne répond pas."); }
+        finally { _requestLock.Release(); }
+    }
+
     // Une seule demande à la fois (verrou) : la prochaine réponse non sollicitée (hors état/alerte) lui revient
     private async Task<IpcEnvelope> RoundTripAsync(IpcEnvelope request, CancellationToken ct)
     {
@@ -161,7 +195,7 @@ public sealed partial class ServiceClient : IAsyncDisposable
                     case IpcContract.Types.Alert when message.Alert is not null:
                         AlertReceived?.Invoke(this, message.Alert);
                         break;
-                    case IpcContract.Types.Challenge or IpcContract.Types.StopResult or IpcContract.Types.Error:
+                    case IpcContract.Types.Challenge or IpcContract.Types.StopResult or IpcContract.Types.LockdownResult or IpcContract.Types.Error:
                         _pending?.TrySetResult(message);
                         break;
                 }

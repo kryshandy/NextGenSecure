@@ -35,6 +35,9 @@ public static class IpcContract
         public const string StopResult = "stopResult";
         public const string AmsiScan = "amsiScan";
         public const string AmsiResult = "amsiResult";
+        public const string LockdownEngage = "lockdownEngage";
+        public const string UnlockRequest = "unlockRequest";
+        public const string LockdownResult = "lockdownResult";
     }
 
     internal static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
@@ -89,7 +92,8 @@ public sealed record IpcEnvelope(
     StopRequest? Stop = null,
     StopResult? StopResult = null,
     AmsiScanRequest? Amsi = null,
-    AmsiVerdict? AmsiVerdict = null);
+    AmsiVerdict? AmsiVerdict = null,
+    LockdownRequest? Lockdown = null);
 
 /// <summary>Alerte émise par le service. Sévérité : "Info", "Warning" ou "Critical".</summary>
 public sealed record ServiceAlert(string Severity, string Source, string Title, string Detail, DateTime TimestampUtc);
@@ -120,6 +124,9 @@ public sealed record ServiceStatus(
 /// </summary>
 public sealed record AmsiScanRequest(string App, string? ContentName, string Content);
 
+/// <summary>Demande de verrouillage d'urgence du PC.</summary>
+public sealed record LockdownRequest(string Reason, bool CutNetwork);
+
 /// <summary>Verdict renvoyé au fournisseur : <paramref name="Detected"/> = bloquer l'exécution.</summary>
 public sealed record AmsiVerdict(bool Detected, int Score, string Reason);
 
@@ -139,4 +146,5 @@ public static class ServiceModules
     public const string Amsi = "Amsi";
     public const string Memory = "Memory";
     public const string Credentials = "Credentials";
+    public const string Lockdown = "Lockdown";
 }

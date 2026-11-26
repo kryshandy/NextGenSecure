@@ -1,4 +1,4 @@
-using CoreGuard.Devices;
+﻿using CoreGuard.Devices;
 
 [assembly: Parallelize(Scope = ExecutionScope.MethodLevel)]
 
@@ -130,5 +130,27 @@ public sealed class BadUsbTests
     {
         var keyboards = BadUsbMonitor.ListKeyboards();
         Assert.IsNotNull(keyboards); // une machine sans clavier physique (VM, CI) renvoie une liste vide
+    }
+}
+
+[TestClass]
+public sealed class InputLockTests
+{
+    [TestMethod]
+    [DataRow(0x5B, false, false, true)]   // touche Windows
+    [DataRow(0x09, true, false, true)]    // Alt+Tab
+    [DataRow(0x73, true, false, true)]    // Alt+F4
+    [DataRow(0x1B, false, true, true)]    // Ctrl+Échap
+    [DataRow(0x41, false, false, false)]  // lettre A : saisie du mot de passe
+    [DataRow(0x0D, false, false, false)]  // Entrée
+    public void Seuls_les_raccourcis_systeme_sont_bloques_sur_l_ecran_de_verrouillage(int vk, bool alt, bool ctrl, bool blocked)
+    {
+        Assert.AreEqual(blocked, InputLockHook.ShouldBlock(vk, alt, ctrl, lockWindowForeground: true));
+    }
+
+    [TestMethod]
+    public void Hors_de_l_ecran_de_verrouillage_tout_est_bloque()
+    {
+        Assert.IsTrue(InputLockHook.ShouldBlock(0x41, false, false, lockWindowForeground: false));
     }
 }

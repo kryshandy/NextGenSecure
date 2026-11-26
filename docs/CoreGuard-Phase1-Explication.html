@@ -111,7 +111,7 @@
   <p class="lead">Une suite de sécurité 100 % locale pour Windows 10/11 : aucun cloud, aucune donnée envoyée à l'extérieur. Chaque partie de ce document se lit à deux niveaux : <strong>en français facile</strong>, puis <strong>en termes informatiques</strong>.</p>
   <div class="stats" role="list">
     <div class="stat" role="listitem"><b>30</b><span>projets .NET dans la solution</span></div>
-    <div class="stat" role="listitem"><b>365</b><span>tests automatisés, tous verts</span></div>
+    <div class="stat" role="listitem"><b>379</b><span>tests automatisés, tous verts</span></div>
     <div class="stat" role="listitem"><b>9 / 12</b><span>étapes du plan d'alignement terminées</span></div>
     <div class="stat" role="listitem"><b>0</b><span>dépendance au cloud ou au driver noyau</span></div>
   </div>
@@ -273,6 +273,24 @@
       <li>DACL : SYSTEM en accès complet, <code>OWNER RIGHTS</code> et Everyone limités à <code>QUERY_LIMITED | SYNCHRONIZE</code>.</li>
       <li>Service : <code>CanStop = false</code>. Watchdog : signal d'arrêt légitime signé HMAC sur un stdin privé.</li>
       <li>Arrêt : défi-réponse HMAC-SHA256, clé PBKDF2 (600 000 itérations), nonce à usage unique valable 60 s, verrouillage 5 min après 5 échecs. Le mot de passe ne transite jamais.</li>
+    </ul>
+  </div>
+</div>
+
+<h3 id="verrouillage">Verrouillage d'urgence du PC : comment il marche et comment on déverrouille</h3>
+<div class="two">
+  <div class="card easy"><h4>En français facile</h4>
+    <p><strong>Pour verrouiller :</strong> le bouton « Verrouiller le PC » du tableau de bord, ou automatiquement si une clé BadUSB est détectée, ou <strong>à distance</strong> depuis ton téléphone : tu déposes dans ton dossier OneDrive / Google Drive un petit fichier « CoreGuard-VERROUILLER.txt » qui contient ton code secret. Dès que le PC le reçoit, il se verrouille.</p>
+    <p><strong>Ce qui se passe :</strong> Windows se verrouille ; derrière, un écran CoreGuard couvre tous les écrans. Le clavier ne sert plus qu'à taper le mot de passe dans cet écran ; les clés USB ne marchent plus et aucun nouveau périphérique (clavier piégé, clé) n'est accepté ; Internet peut être coupé. Même après un redémarrage, le verrouillage reste.</p>
+    <p><strong>Pour déverrouiller :</strong> devant le PC, ton mot de passe de protection CoreGuard. Après 5 erreurs, il faut attendre 5 minutes. Tout est remis exactement comme avant.</p>
+  </div>
+  <div class="card tech"><h4>En termes informatiques</h4>
+    <ul>
+      <li>Service (SYSTEM) : <code>USBSTOR\Start = 4</code>, stratégie <code>DeviceInstall\Restrictions\DenyUnspecified = 1</code>, kill switch pare-feu optionnel ; valeurs d'origine sauvegardées avant modification et restaurées au déverrouillage ; état persisté et ré-appliqué au démarrage.</li>
+      <li>UI : <code>LockWorkStation</code>, fenêtre topmost sur l'écran virtuel (réactivée toutes les 0,7 s), hook <code>WH_KEYBOARD_LL</code> (Win, Alt+Tab, Alt+F4, Ctrl+Échap, et toute frappe hors de la fenêtre), DACL du processus durcie.</li>
+      <li>À distance : watcher + scrutation 30 s d'un dossier synchronisé ; contenu comparé à une empreinte PBKDF2 en temps constant ; aucun port ouvert, aucun serveur CoreGuard.</li>
+      <li>Déverrouillage : défi-réponse HMAC (même authentificateur que l'arrêt du service).</li>
+      <li>Limite : Ctrl+Alt+Suppr n'est interceptable par aucun logiciel ; une déconnexion de session ferme l'écran jusqu'au prochain lancement de l'UI (USB et réseau restent bloqués).</li>
     </ul>
   </div>
 </div>

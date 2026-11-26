@@ -55,6 +55,8 @@ public partial class App : Application
         // Lien avec le service SYSTEM : s'il répond, il reprend la télémétrie ETW (sinon fonctionnement autonome)
         _services.GetRequiredService<ServiceLink>().Start();
         _services.GetRequiredService<VaultService>().StartBroker();
+        // Verrouillage d'urgence : l'écran apparaît dès que le service annonce un verrouillage (même après redémarrage)
+        _services.GetRequiredService<LockdownUiController>().Start();
         _ = _services.GetRequiredService<QuarantineViewModel>().OnNavigatedToAsync();
         _ = LoadStatsAsync(_services);
     }
@@ -113,6 +115,7 @@ public partial class App : Application
         services.AddSingleton<INetworkGuard, WindowsFirewall>();
         services.AddSingleton<UiThreatResponder>();
         services.AddSingleton<ServiceLink>();
+        services.AddSingleton<LockdownUiController>();
         // Gestionnaire de mots de passe (coffre local) + canal d'auto-remplissage pour l'extension
         services.AddSingleton(sp => new VaultService(dataDir, sp.GetRequiredService<AlertHub>()));
         services.AddSingleton<ProtectionService>();

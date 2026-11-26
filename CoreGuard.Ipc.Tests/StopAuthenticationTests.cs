@@ -1,4 +1,4 @@
-using CoreGuard.Ipc;
+﻿using CoreGuard.Ipc;
 
 namespace CoreGuard.Ipc.Tests;
 
@@ -147,5 +147,35 @@ public sealed class StopAuthenticationTests
         Assert.IsFalse(stopped);
         Assert.IsTrue((await client.RequestStopAsync(Password)).Accepted);
         Assert.IsTrue(stopped);
+    }
+
+    [TestMethod]
+    public async Task Verrouillage_puis_deverrouillage_HMAC_par_le_pipe()
+    {
+        string name = "CoreGuard.Test." + Guid.NewGuid().ToString("N");
+        var auth = new StopAuthenticator(ProtectionSecret.Create(Password, FastIterations));
+        bool locked = false;
+
+        IpcEnvelope? Handle(IpcEnvelope r) => r.Type switch
+        {
+            IpcContract.Types.LockdownEngage => Reply(locked = true, "verrouillé"),
+            IpcContract.Types.Challenge => new IpcEnvelope(IpcContract.Types.Challenge, Challenge: auth.IssueChallenge()),
+            IpcContract.Types.UnlockRequest => auth.Verify(r.Stop) is { Accepted: true } ? Reply(!(locked = false), "ok") : Reply(false, "refusé"),
+            _ => null
+        };
+        static IpcEnvelope Reply(bool ok, string m) => new(IpcContract.Types.LockdownResult, StopResult: new StopResult(ok, m));
+
+        await using var server = new PipeServer(name,
+            () => new ServiceStatus(1, Environment.ProcessId, DateTime.UtcNow, "x", false, false, []), null, Handle);
+        server.Start();
+        await using var client = new ServiceClient(name, requireServiceSession: false);
+        Assert.IsTrue(await client.ConnectAsync(TimeSpan.FromSeconds(5)));
+
+        Assert.IsTrue((await client.EngageLockdownAsync("test", false)).Accepted);
+        Assert.IsTrue(locked);
+        Assert.IsFalse((await client.RequestUnlockAsync("mauvais-mdp")).Accepted);
+        Assert.IsTrue(locked, "un mauvais mot de passe ne déverrouille pas");
+        Assert.IsTrue((await client.RequestUnlockAsync(Password)).Accepted);
+        Assert.IsFalse(locked);
     }
 }
