@@ -16,13 +16,14 @@
                       CornerRadius="0" UseAeroCaptionButtons="False"/>
     </WindowChrome.WindowChrome>
 
-    <!-- Raccourcis clavier de navigation : Ctrl+1 à Ctrl+5 -->
+    <!-- Raccourcis clavier de navigation : Ctrl+1 à Ctrl+6 -->
     <Window.InputBindings>
         <KeyBinding Key="D1" Modifiers="Control" Command="{Binding GoToCommand}" CommandParameter="1"/>
         <KeyBinding Key="D2" Modifiers="Control" Command="{Binding GoToCommand}" CommandParameter="2"/>
         <KeyBinding Key="D3" Modifiers="Control" Command="{Binding GoToCommand}" CommandParameter="3"/>
         <KeyBinding Key="D4" Modifiers="Control" Command="{Binding GoToCommand}" CommandParameter="4"/>
         <KeyBinding Key="D5" Modifiers="Control" Command="{Binding GoToCommand}" CommandParameter="5"/>
+        <KeyBinding Key="D6" Modifiers="Control" Command="{Binding GoToCommand}" CommandParameter="6"/>
     </Window.InputBindings>
 
     <Window.Resources>
@@ -32,6 +33,7 @@
         <DataTemplate DataType="{x:Type vm:QuarantineViewModel}"><views:QuarantineView/></DataTemplate>
         <DataTemplate DataType="{x:Type vm:HistoryViewModel}"><views:HistoryView/></DataTemplate>
         <DataTemplate DataType="{x:Type vm:SettingsViewModel}"><views:SettingsView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:VaultViewModel}"><views:VaultView/></DataTemplate>
     </Window.Resources>
 
     <Grid x:Name="RootGrid">

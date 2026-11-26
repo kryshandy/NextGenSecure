@@ -111,7 +111,7 @@
   <p class="lead">Une suite de sécurité 100 % locale pour Windows 10/11 : aucun cloud, aucune donnée envoyée à l'extérieur. Chaque partie de ce document se lit à deux niveaux : <strong>en français facile</strong>, puis <strong>en termes informatiques</strong>.</p>
   <div class="stats" role="list">
     <div class="stat" role="listitem"><b>30</b><span>projets .NET dans la solution</span></div>
-    <div class="stat" role="listitem"><b>345</b><span>tests automatisés, tous verts</span></div>
+    <div class="stat" role="listitem"><b>365</b><span>tests automatisés, tous verts</span></div>
     <div class="stat" role="listitem"><b>9 / 12</b><span>étapes du plan d'alignement terminées</span></div>
     <div class="stat" role="listitem"><b>0</b><span>dépendance au cloud ou au driver noyau</span></div>
   </div>
@@ -255,7 +255,8 @@
     <tr><td><strong>Caméra / micro</strong></td><td>Prévient quand une application utilise la webcam ou le micro.</td><td>Scrutation du registre <code>CapabilityAccessManager\ConsentStore</code>.</td><td><span class="pill ok">Actif + bouton Couper</span></td></tr>
     <tr><td><strong>Persistance</strong></td><td>Signale un programme qui s'inscrit pour se relancer à chaque démarrage.</td><td>Clés <code>Run</code> / <code>RunOnce</code>, tâches planifiées, événement 7045 (services).</td><td><span class="pill warn">Alerte sans pop-up</span></td></tr>
     <tr><td><strong>Téléchargements</strong></td><td>Analyse automatiquement chaque fichier téléchargé.</td><td><code>FileSystemWatcher</code> sur Téléchargements + pipeline d'analyse.</td><td><span class="pill warn">Zone.Identifier non lu</span></td></tr>
-    <tr><td><strong>Anti-phishing</strong></td><td>Compare ce que la page <em>affiche</em> (« Banque X ») à son adresse réelle, et repère les faux domaines qui ressemblent aux vrais.</td><td>Extension MV3 → Native Messaging → OCR <code>Windows.Media.Ocr</code>, QR <code>ZXing</code>, distance de Levenshtein, homographes Unicode.</td><td><span class="pill warn">Hôte à enregistrer à la main</span></td></tr>
+    <tr><td><strong>Anti-phishing</strong></td><td>Compare ce que la page <em>affiche</em> (« Banque X ») à son adresse réelle, et repère les faux domaines qui ressemblent aux vrais.</td><td>Extension MV3 → Native Messaging → OCR <code>Windows.Media.Ocr</code>, QR <code>ZXing</code>, distance de Levenshtein, homographes Unicode.</td><td><span class="pill ok">Actif (script d'installation)</span></td></tr>
+    <tr><td><strong>Gestionnaire de mots de passe</strong></td><td>Un coffre chiffré garde tes mots de passe ; l'extension les remplit directement dans la page du bon site, jamais sur une page suspecte, sans presse-papiers.</td><td>Coffre Argon2id + AES-256-GCM, verrouillage auto 15 min, ACL utilisateur ; pipe par utilisateur, client autorisé seulement si l'hôte a un navigateur signé dans son ascendance (Toolhelp + Authenticode), hôte exact + https.</td><td><span class="pill ok">Actif</span></td></tr>
   </tbody>
 </table>
 

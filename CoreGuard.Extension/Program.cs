@@ -1,11 +1,12 @@
-using CoreGuard.Extension;
+﻿using CoreGuard.Extension;
 
 // Hôte Native Messaging CoreGuard : boucle stdin -> routeur -> stdout.
 // IMPORTANT : stdout est réservé au protocole ; aucun Console.WriteLine ailleurs.
 using var entree = Console.OpenStandardInput();
 using var sortie = Console.OpenStandardOutput();
 
-var routeur = new HostRouter(new OcrPhishingAnalyzer(), new NullCredentialProvider());
+// Identifiants : coffre CoreGuard via l'interface (refus si cet hôte n'a pas été lancé par un navigateur signé)
+var routeur = new HostRouter(new OcrPhishingAnalyzer(), new VaultCredentialProvider());
 
 while (true)
 {

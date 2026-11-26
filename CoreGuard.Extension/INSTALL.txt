@@ -1,19 +1,19 @@
-Installation de l'hote Native Messaging CoreGuard (Chrome / Chromium, Windows)
-==============================================================================
+Installation de l'extension CoreGuard Browser Shield (Chrome, Edge, Brave, Chromium - Windows)
+==============================================================================================
 
-1. Compiler : dotnet build CoreGuard.Extension/CoreGuard.Extension.csproj -c Release
-2. Charger l'extension : chrome://extensions > Mode developpeur > "Charger l'extension non empaquetee"
-   -> dossier CoreGuard.Extension\extension. Noter l'ID genere.
-3. Editer com.coreguard.host.json (a cote de l'exe) :
-   - "path" : chemin ABSOLU de CoreGuard.Extension.exe
-   - "allowed_origins" : ["chrome-extension://<ID_EXTENSION>/"]  (aucun joker autorise)
-4. Enregistrer le manifeste (cle par utilisateur, sans droits admin) :
+Methode recommandee (aucun droit administrateur) :
 
-   reg add "HKCU\Software\Google\Chrome\NativeMessagingHosts\com.coreguard.host" /ve /t REG_SZ /d "C:\chemin\vers\com.coreguard.host.json" /f
+    ./scripts/install-browser-extension.ps1
 
-   Edge : HKCU\Software\Microsoft\Edge\NativeMessagingHosts\com.coreguard.host
-5. Redemarrer le navigateur.
+Le script publie l'hote Native Messaging dans %LOCALAPPDATA%\CoreGuard\BrowserHost, ecrit son manifeste
+(chemin absolu + extension autorisee : chrome-extension://dkmnbfljkgocbdiileppcmlcphbjbimi/) et le declare
+pour chaque navigateur (HKCU\...\NativeMessagingHosts\com.coreguard.host).
 
-Securite : l'hote ne fait confiance a aucune donnee venant de l'extension ou de la page
-(taille bornee, JSON valide, types de message en liste blanche).
-Desinstallation : reg delete "HKCU\Software\Google\Chrome\NativeMessagingHosts\com.coreguard.host" /f
+Puis, une seule fois par navigateur : chrome://extensions > Mode developpeur > "Charger l'extension non
+empaquetee" > dossier CoreGuard.Extension\extension. L'ID est fixe (cle publique dans manifest.json).
+
+Desinstallation : ./scripts/install-browser-extension.ps1 -Uninstall
+
+Securite : l'hote ne fait confiance a aucune donnee venant de l'extension ou de la page (taille bornee, JSON
+valide, types de message en liste blanche). Les mots de passe ne sont fournis que par l'interface CoreGuard
+(coffre deverrouille), uniquement si cet hote a ete lance par un navigateur signe, pour une page https.

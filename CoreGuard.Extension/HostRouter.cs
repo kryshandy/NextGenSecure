@@ -2,22 +2,33 @@ using System.Text.Json;
 
 namespace CoreGuard.Extension;
 
-/// <summary>Source d'identifiants (sera branchée sur le coffre par la composition root).</summary>
+/// <summary>Source d'identifiants pour l'auto-remplissage.</summary>
 public interface ICredentialProvider
 {
-    /// <summary>Retourne (identifiant, mot de passe) pour l'hôte donné, ou null si aucun.</summary>
-    (string Username, string Password)? Find(string host);
+    /// <summary>Cherche l'identifiant enregistré pour l'URL (page vérifiée par l'appelant).</summary>
+    Task<CoreGuard.Ipc.CredentialLookup> FindAsync(string url, CancellationToken ct = default);
 }
 
-/// <summary>Implémentation par défaut : aucun identifiant disponible.</summary>
+/// <summary>Aucun identifiant disponible (tests, coffre non installé).</summary>
 public sealed class NullCredentialProvider : ICredentialProvider
 {
-    public (string Username, string Password)? Find(string host) => null;
+    public Task<CoreGuard.Ipc.CredentialLookup> FindAsync(string url, CancellationToken ct = default) =>
+        Task.FromResult(CoreGuard.Ipc.CredentialLookup.NotFound);
+}
+
+/// <summary>
+/// Coffre CoreGuard : la demande part vers l'interface (pipe propre à l'utilisateur), qui vérifie que cet hôte a
+/// bien été lancé par un navigateur signé avant de répondre. Interface fermée ou coffre verrouillé → « verrouillé ».
+/// </summary>
+public sealed class VaultCredentialProvider : ICredentialProvider
+{
+    public Task<CoreGuard.Ipc.CredentialLookup> FindAsync(string url, CancellationToken ct = default) =>
+        CoreGuard.Ipc.VaultBroker.FindAsync(url, ct);
 }
 
 /// <summary>
 /// Route les requêtes de l'extension. Types acceptés (liste blanche) :
-/// "analyzeCapture" {url, imageBase64} et "requestCredential" {url}.
+/// "checkUrl" {url, hasPassword}, "analyzeCapture" {url, imageBase64} et "requestCredential" {url}.
 /// </summary>
 public sealed class HostRouter(OcrPhishingAnalyzer analyseur, ICredentialProvider identifiants)
 {
@@ -32,8 +43,9 @@ public sealed class HostRouter(OcrPhishingAnalyzer analyseur, ICredentialProvide
         {
             return typeProp.GetString() switch
             {
+                "checkUrl" => CheckUrl(requete),
                 "analyzeCapture" => await AnalyzeCaptureAsync(requete, ct).ConfigureAwait(false),
-                "requestCredential" => RequestCredential(requete),
+                "requestCredential" => await RequestCredentialAsync(requete, ct).ConfigureAwait(false),
                 _ => Erreur("Type de requête inconnu.")
             };
         }
@@ -43,6 +55,15 @@ public sealed class HostRouter(OcrPhishingAnalyzer analyseur, ICredentialProvide
             // Message générique : aucun détail interne renvoyé à la page/extension.
             return Erreur("Traitement impossible : " + e.GetType().Name);
         }
+    }
+
+    // Vérification rapide à chaque navigation (aucune capture) : domaine + signaux d'URL
+    private static object CheckUrl(JsonElement requete)
+    {
+        var url = LireChaine(requete, "url");
+        bool motDePasse = requete.TryGetProperty("hasPassword", out var p) && p.ValueKind == JsonValueKind.True;
+        var resultat = PhishingLogic.AssessNavigation(url, motDePasse);
+        return new { ok = true, verdict = resultat.Verdict.ToString(), reasons = resultat.Reasons };
     }
 
     private async Task<object> AnalyzeCaptureAsync(JsonElement requete, CancellationToken ct)
@@ -64,10 +85,14 @@ public sealed class HostRouter(OcrPhishingAnalyzer analyseur, ICredentialProvide
         };
     }
 
-    private object RequestCredential(JsonElement requete)
+    private async Task<object> RequestCredentialAsync(JsonElement requete, CancellationToken ct)
     {
-        var hote = PhishingLogic.ExtractHost(LireChaine(requete, "url"));
-        if (hote is null) return new { ok = true, found = false };
+        var url = LireChaine(requete, "url");
+        var hote = PhishingLogic.ExtractHost(url);
+        if (hote is null || url is null) return new { ok = true, found = false };
+        // Mots de passe uniquement sur une page chiffrée (sauf machine locale pour les tests)
+        if (!url.StartsWith("https://", StringComparison.OrdinalIgnoreCase) && hote is not "localhost" and not "127.0.0.1")
+            return new { ok = true, found = false, blocked = true };
 
         // Garde-fou : jamais d'identifiants vers un domaine typosquatté/homographe.
         var domaine = PhishingLogic.GetRegistrableDomain(PhishingLogic.ToSkeleton(hote));
@@ -75,10 +100,10 @@ public sealed class HostRouter(OcrPhishingAnalyzer analyseur, ICredentialProvide
             PhishingLogic.DetectHomographs(hote).IsSuspicious)
             return new { ok = true, found = false, blocked = true };
 
-        var trouve = identifiants.Find(hote);
-        return trouve is null
-            ? new { ok = true, found = false, blocked = false }
-            : new { ok = true, found = true, blocked = false, username = trouve.Value.Username, password = trouve.Value.Password };
+        var trouve = await identifiants.FindAsync(url, ct).ConfigureAwait(false);
+        return trouve.Found
+            ? new { ok = true, found = true, blocked = false, locked = false, username = trouve.Username, password = trouve.Password }
+            : new { ok = true, found = false, blocked = trouve.Denied, locked = trouve.Locked, username = (string?)null, password = (string?)null };
     }
 
     private static string? LireChaine(JsonElement objet, string nom) =>

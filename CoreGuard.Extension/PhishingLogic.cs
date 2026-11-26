@@ -289,4 +289,47 @@ public static class PhishingLogic
 
     /// <summary>Évalue uniquement une URL (cas du QR code : aucun texte de page disponible).</summary>
     public static PhishingAssessment AssessUrl(string? url) => Assess(string.Empty, url);
+
+    /// <summary>
+    /// Évaluation rapide à chaque navigation (sans capture ni OCR) : domaine (homographes, typosquatting) plus
+    /// trois signaux d'URL — adresse IP au lieu d'un nom, marque placée dans un sous-domaine d'un domaine tiers
+    /// (« paypal.com.connexion-securisee.net »), champ mot de passe sur une page non chiffrée (http).
+    /// </summary>
+    public static PhishingAssessment AssessNavigation(string? url, bool hasPasswordField)
+    {
+        var baseAssessment = AssessUrl(url);
+        var hote = ExtractHost(url);
+        if (hote is null) return baseAssessment;
+
+        var verdict = baseAssessment.Verdict;
+        var raisons = new List<string>(baseAssessment.Reasons);
+        void Raise(PhishingVerdict v, string raison)
+        {
+            if (v > verdict) verdict = v;
+            raisons.Add(raison);
+        }
+
+        if (System.Net.IPAddress.TryParse(hote.Trim('[', ']'), out _) && hote is not "127.0.0.1" and not "[::1]")
+            Raise(hasPasswordField ? PhishingVerdict.Phishing : PhishingVerdict.Suspicious,
+                "Adresse IP au lieu d'un nom de domaine.");
+
+        var domaine = GetRegistrableDomain(ToSkeleton(hote));
+        var sousDomaines = hote.Length > domaine.Length ? hote[..^domaine.Length] : "";
+        foreach (var (marque, legitimes) in Brands)
+        {
+            if (IsLegitimateDomainForBrand(marque, domaine)) continue;
+            if (sousDomaines.Contains(marque, StringComparison.OrdinalIgnoreCase)
+                || legitimes.Any(l => sousDomaines.Contains(l, StringComparison.OrdinalIgnoreCase)))
+            {
+                Raise(PhishingVerdict.Phishing, $"La marque '{marque}' est placée en sous-domaine du domaine tiers '{domaine}'.");
+                break;
+            }
+        }
+
+        if (hasPasswordField && Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttp
+            && !uri.IsLoopback)
+            Raise(PhishingVerdict.Suspicious, "Mot de passe demandé sur une page non chiffrée (http).");
+
+        return new PhishingAssessment(verdict, raisons);
+    }
 }

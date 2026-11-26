@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using AntivirusIA.UI.Models;
 using AntivirusIA.UI.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -16,7 +16,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public MainViewModel(
         DashboardViewModel dashboard, ScanViewModel scan, QuarantineViewModel quarantine,
-        HistoryViewModel history, SettingsViewModel settingsVm,
+        HistoryViewModel history, VaultViewModel vault, SettingsViewModel settingsVm,
         AppSettings settings, ThemeService theme, SettingsStore store, ActivityStats stats)
     {
         _settings = settings;
@@ -31,7 +31,8 @@ public sealed partial class MainViewModel : ObservableObject
             new NavItemViewModel("Analyse", "Icon.Scan", scan, "Ctrl+2"),
             quarantineItem,
             new NavItemViewModel("Historique", "Icon.History", history, "Ctrl+4"),
-            new NavItemViewModel("Réglages", "Icon.Settings", settingsVm, "Ctrl+5"),
+            new NavItemViewModel("Coffre-fort", "Icon.Key", vault, "Ctrl+5"),
+            new NavItemViewModel("Réglages", "Icon.Settings", settingsVm, "Ctrl+6"),
         ];
         _current = Items[0];
         _current.IsSelected = true;

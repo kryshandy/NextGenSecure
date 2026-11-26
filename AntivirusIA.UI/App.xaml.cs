@@ -54,6 +54,7 @@ public partial class App : Application
         _ = _services.GetRequiredService<ProtectionService>().ApplyAsync();
         // Lien avec le service SYSTEM : s'il répond, il reprend la télémétrie ETW (sinon fonctionnement autonome)
         _services.GetRequiredService<ServiceLink>().Start();
+        _services.GetRequiredService<VaultService>().StartBroker();
         _ = _services.GetRequiredService<QuarantineViewModel>().OnNavigatedToAsync();
         _ = LoadStatsAsync(_services);
     }
@@ -112,6 +113,8 @@ public partial class App : Application
         services.AddSingleton<INetworkGuard, WindowsFirewall>();
         services.AddSingleton<UiThreatResponder>();
         services.AddSingleton<ServiceLink>();
+        // Gestionnaire de mots de passe (coffre local) + canal d'auto-remplissage pour l'extension
+        services.AddSingleton(sp => new VaultService(dataDir, sp.GetRequiredService<AlertHub>()));
         services.AddSingleton<ProtectionService>();
         services.AddSingleton<ScanService>();
 
@@ -121,6 +124,7 @@ public partial class App : Application
         services.AddSingleton<QuarantineViewModel>();
         services.AddSingleton<HistoryViewModel>();
         services.AddSingleton<SettingsViewModel>();
+        services.AddSingleton<VaultViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
     }

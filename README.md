@@ -89,8 +89,10 @@ CoreGuard.sln
 **Modules utilisateur**
 - ✅ **Presse-papiers intelligent** (anti-crypto-clipper, vidage des secrets après 30 s)
 - ✅ **Privacy Guard** : alerte quand une application utilise la caméra ou le micro, bouton **Couper** (arrêt de l'application, retrait de l'autorisation) et interdiction aux applications de bureau en un clic
-- 🟡 **Vault** (crypto complète, non branché à l'UI), **Mode Paranoïa** (interrupteur sans action réelle)
-- 🟡 **Anti-phishing visuel** par OCR (`Windows.Media.Ocr`) + QR (quishing) dans l'extension ; hôte Native Messaging à enregistrer à la main (`CoreGuard.Extension/INSTALL.txt`)
+- ✅ **Gestionnaire de mots de passe** : page « Coffre-fort » (Argon2id + AES-256-GCM, générateur, verrouillage auto), auto-remplissage par l'extension sans presse-papiers, refusé à tout programme qui n'est pas lancé par un navigateur signé
+- 🟡 **Mode Paranoïa** (interrupteur sans action réelle)
+- ✅ **Anti-phishing** : vérification de chaque page (homographes, typosquatting, IP, marque en sous-domaine, mot de passe en http), bandeau d'alerte dans la page ; installation : `./scripts/install-browser-extension.ps1`
+- ✅ **Anti-phishing visuel** par OCR (`Windows.Media.Ocr`) + QR (quishing) dans l'extension ; hôte Native Messaging à enregistrer à la main (`CoreGuard.Extension/INSTALL.txt`)
 
 ---
 
@@ -142,7 +144,7 @@ dotnet run --project AntivirusIA.UI
 dotnet test AntivirusIA.slnx
 ```
 
-345 tests MSTest (moteurs, quarantaine, règles, comportement, réseau, réponse, IPC, service, fournisseur AMSI natif, vie privée, coffre, extension). Procédure de test manuelle : [`docs/TESTING.md`](docs/TESTING.md).
+365 tests MSTest (moteurs, quarantaine, règles, comportement, réseau, réponse, IPC, service, fournisseur AMSI natif, vie privée, coffre, extension). Procédure de test manuelle : [`docs/TESTING.md`](docs/TESTING.md).
 
 ---
 

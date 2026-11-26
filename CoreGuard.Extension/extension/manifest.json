@@ -1,9 +1,15 @@
 {
   "manifest_version": 3,
   "name": "CoreGuard Browser Shield",
-  "version": "0.1.0",
-  "description": "Anti-phishing visuel et auto-remplissage securise pour CoreGuard.",
-  "permissions": ["activeTab", "scripting", "nativeMessaging", "tabs"],
+  "version": "0.2.0",
+  "description": "Anti-phishing (domaines, OCR, QR) et auto-remplissage sécurisé depuis le coffre CoreGuard.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyRSSbWUKnN+G+0yTsnHTvSfflavXHNpXjlf5hgoFLLb93yjlFDGfEWFTIVkUNaAji0dESmDreJltWkd/zy4Vo3ql/n2JoaRkvcLn+Nu5FvQ1VHkXOzMUYCDRP+7TMHEwViFJR6uAuaXZV5yLum6KFDTZLqV6l4/+YPP9RXA2Vs3s2Bqvcw8CmLKNkKVqb2KSCbrE4U2z0EoeDUrgQknsjBg+WP0sBLEkhbfiu3b2928gOEHuE4LMqB9bS0JFyXQz9ufLoMAL8ocBM9pj1ayhooX4TwKqmsasnJ3d+2q8ZUxfsstN1E9nMGzLxW/IzJmYljiTCK54h9Ol2J8gsb800QIDAQAB",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "nativeMessaging",
+    "tabs"
+  ],
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -12,16 +18,24 @@
   },
   "action": {
     "default_title": "CoreGuard",
+    "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png"
     }
   },
-  "background": { "service_worker": "background.js" },
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
-      "matches": ["https://*/*", "http://*/*"],
-      "js": ["content.js"],
+      "matches": [
+        "https://*/*",
+        "http://*/*"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ]
