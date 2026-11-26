@@ -1,4 +1,4 @@
-using AntivirusIA.AI;
+﻿using AntivirusIA.AI;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace AntivirusIA.UI.Models;
@@ -21,6 +21,7 @@ public sealed partial class AppSettings : ObservableObject
     [ObservableProperty] private bool _clipboardEnabled = true;
     [ObservableProperty] private bool _sensorsEnabled = true;
     [ObservableProperty] private bool _paranoiaEnabled;
+    [ObservableProperty] private bool _badUsbEnabled = true;
 
     // Les seuils restent cohérents : suspect < malveillant, bornés à 1..100
     partial void OnThresholdSuspectChanged(int value)

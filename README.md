@@ -47,6 +47,7 @@ CoreGuard.sln
 ├─ CoreGuard.Ipc              Canal UI ↔ service (named pipe local, ACL, vérification du serveur)
 ├─ CoreGuard.Service          Service Windows LocalSystem : ETW, canaris, analyse AMSI, auto-défense
 ├─ CoreGuard.AmsiProvider     Fournisseur AMSI natif (NativeAOT, COM) chargé dans PowerShell & co.
+├─ CoreGuard.Devices          Moniteur BadUSB : cadence de frappe, blocage de l'injection
 ├─ CoreGuard.Vault            Coffre-fort mots de passe (SQLite + Argon2id + AES-GCM)
 ├─ CoreGuard.Privacy          Privacy Guard (caméra/micro), presse-papiers, Mode Paranoïa
 ├─ AntivirusIA.UI             Interface WPF (MVVM) — dashboard temps réel
@@ -80,7 +81,8 @@ CoreGuard.sln
 - 🟡 **Gardien de persistance** (Run/RunOnce, tâches planifiées, services 7045) — détection sans pop-up de blocage
 - 🟡 Pare-feu : règles par application et **kill switch** via le pare-feu Windows ; WFP natif prévu
 - ✅ **Auto-défense** du service : DACL durcie (taskkill refusé), watchdog mutuel (chaque processus relance l'autre), `sc stop` refusé, arrêt uniquement par **mot de passe** (défi-réponse HMAC, verrouillage après 5 échecs)
-- ⏳ Scan mémoire, moniteur BadUSB, anti-infostealer
+- ✅ **Moniteur BadUSB** : un faux clavier USB qui tape à une vitesse surhumaine (ou à un rythme de machine) est bloqué 10 s ; un nouveau clavier branché déclenche une alerte et une vigilance renforcée
+- ⏳ Scan mémoire, anti-infostealer
 
 **Modules utilisateur**
 - ✅ **Presse-papiers intelligent** (anti-crypto-clipper, vidage des secrets après 30 s)
@@ -137,7 +139,7 @@ dotnet run --project AntivirusIA.UI
 dotnet test AntivirusIA.slnx
 ```
 
-306 tests MSTest (moteurs, quarantaine, règles, comportement, réseau, réponse, IPC, service, fournisseur AMSI natif, vie privée, coffre, extension). Procédure de test manuelle : [`docs/TESTING.md`](docs/TESTING.md).
+316 tests MSTest (moteurs, quarantaine, règles, comportement, réseau, réponse, IPC, service, fournisseur AMSI natif, vie privée, coffre, extension). Procédure de test manuelle : [`docs/TESTING.md`](docs/TESTING.md).
 
 ---
 

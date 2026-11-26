@@ -26,6 +26,7 @@
     <ProjectReference Include="..\CoreGuard.Privacy\CoreGuard.Privacy.csproj" />
     <ProjectReference Include="..\CoreGuard.Response\CoreGuard.Response.csproj" />
     <ProjectReference Include="..\CoreGuard.Ipc\CoreGuard.Ipc.csproj" />
+    <ProjectReference Include="..\CoreGuard.Devices\CoreGuard.Devices.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -21,4 +21,5 @@ Chaque module est un projet isolé qui ne référence que `AntivirusIA.Core`. Le
 | `CoreGuard.Ipc` | Canal UI ↔ service : trames JSON bornées, `PipeServer` (ACL, diffusion), `ServiceClient` (rejet des serveurs hors session 0), arrêt authentifié (PBKDF2 + HMAC) | Complet |
 | `CoreGuard.Service` | Service Windows LocalSystem : télémétrie ETW, arrêt des suppressions de clichés, canaris + audit NTFS, analyse des scripts AMSI, auto-défense, état et alertes sur le pipe | Partiel (persistance HKLM et réseau à migrer) |
 | `CoreGuard.AmsiProvider` | Fournisseur AMSI natif (NativeAOT, COM) : transmet chaque script au service avant exécution, bloque sur son verdict | Complet (x64, non signé) |
-| Tests (`*.Tests`) | 306 tests MSTest | Complet pour l'existant |
+| `CoreGuard.Devices` | Moniteur BadUSB : cadence de frappe (hook clavier), blocage de l'injection, détection des nouveaux claviers | Complet |
+| Tests (`*.Tests`) | 316 tests MSTest | Complet pour l'existant |

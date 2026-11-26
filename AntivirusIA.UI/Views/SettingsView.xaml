@@ -1,4 +1,4 @@
-<UserControl x:Class="AntivirusIA.UI.Views.SettingsView"
+﻿<UserControl x:Class="AntivirusIA.UI.Views.SettingsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ctl="clr-namespace:AntivirusIA.UI.Controls">
@@ -171,6 +171,9 @@
                             </ctl:SettingRow>
                             <ctl:SettingRow Title="Webcam et microphone" Description="Alerte quand une application utilise un capteur.">
                                 <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding Settings.SensorsEnabled}" AutomationProperties.Name="Webcam et microphone"/>
+                            </ctl:SettingRow>
+                            <ctl:SettingRow Title="Clavier (BadUSB)" Description="Bloque pendant 10 s une frappe automatique (débit surhumain ou cadence de machine). Peut gêner la saisie automatique d'un gestionnaire de mots de passe.">
+                                <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding Settings.BadUsbEnabled}" AutomationProperties.Name="Clavier BadUSB"/>
                             </ctl:SettingRow>
                             <ctl:SettingRow Title="Mode paranoïa" Description="Politique de durcissement renforcée (USB, pare-feu, exécution depuis les dossiers utilisateur)." ShowSeparator="False">
                                 <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding Settings.ParanoiaEnabled}" AutomationProperties.Name="Mode paranoïa"/>

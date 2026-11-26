@@ -43,6 +43,7 @@ public sealed class ProtectionService : IDisposable
     private PersistenceWatcher? _persistence;
     private ClipboardGuardian? _clipboard;
     private SensorMonitor? _sensors;
+    private CoreGuard.Devices.BadUsbMonitor? _badUsb;
     private Timer? _networkTimer;
     private bool _disposed;
 
@@ -54,6 +55,7 @@ public sealed class ProtectionService : IDisposable
     public ProtectionModule Clipboard { get; } = new("Presse-papiers", "Anti-détournement d'adresses crypto", "Icon.File");
     public ProtectionModule Sensors { get; } = new("Webcam et micro", "Alerte sur utilisation par une application", "Icon.Eye");
     public ProtectionModule Paranoia { get; } = new("Mode paranoïa", "Durcissement renforcé (USB, pare-feu, exécution)", "Icon.Shield");
+    public ProtectionModule BadUsb { get; } = new("Clavier (BadUSB)", "Bloque la frappe automatique d'un faux clavier USB", "Icon.Keyboard");
 
     public ObservableCollection<ProtectionModule> Modules { get; }
 
@@ -71,7 +73,7 @@ public sealed class ProtectionService : IDisposable
         _responder = responder;
         _network = network;
         _service = service;
-        Modules = [Files, Canaries, Behavior, Persistence, Network, Clipboard, Sensors, Paranoia];
+        Modules = [Files, Canaries, Behavior, Persistence, Network, Clipboard, Sensors, BadUsb, Paranoia];
 
         // Le service (SYSTEM) prend la télémétrie ETW dès qu'il est joignable, et la rend s'il disparaît
         _service.StatusChanged += () => _ = ApplyServiceModulesAsync();
@@ -92,6 +94,7 @@ public sealed class ProtectionService : IDisposable
             ApplyNetwork();
             ApplyClipboard();
             ApplySensors();
+            ApplyBadUsb();
             ApplyParanoia();
         }
         UiThread.Post(() => ModulesChanged?.Invoke());
@@ -283,6 +286,26 @@ public sealed class ProtectionService : IDisposable
         });
     }
 
+    // ---- BadUSB : hook clavier (session de l'utilisateur) ----
+    private void ApplyBadUsb()
+    {
+        Stop(ref _badUsb, m => m.Dispose());
+        if (!_settings.BadUsbEnabled) { Set(BadUsb, ModuleState.Disabled, "Désactivé"); return; }
+
+        Guard(BadUsb, () =>
+        {
+            var monitor = new CoreGuard.Devices.BadUsbMonitor();
+            monitor.InjectionDetected += (_, a) => _alerts.Publish(AlertSeverity.Critical, "BadUSB",
+                "Frappe automatique bloquée",
+                $"{a.Verdict.CharsPerSecond:F0} car/s ({(a.Verdict.Kind == CoreGuard.Devices.InjectionKind.ExtremeRate ? "débit surhumain" : "cadence de machine")}"
+                + $"{(a.Verdict.InjectedRatio > 0.5 ? ", injection logicielle" : ", périphérique matériel")}) : clavier bloqué {a.BlockedFor.TotalSeconds:F0} s");
+            monitor.KeyboardConnected += (_, name) => _alerts.Publish(AlertSeverity.Warning, "BadUSB",
+                "Nouveau clavier branché", $"Vigilance renforcée pendant 60 s : {name}");
+            if (monitor.Start()) { _badUsb = monitor; Set(BadUsb, ModuleState.Active, "Cadence de frappe surveillée"); }
+            else { monitor.Dispose(); Set(BadUsb, ModuleState.Unavailable, "Hook clavier impossible"); }
+        });
+    }
+
     private void ApplyParanoia()
     {
         bool changed = _paranoia.SetEnabled(_settings.ParanoiaEnabled);
@@ -326,6 +349,7 @@ public sealed class ProtectionService : IDisposable
             Stop(ref _persistence, p => p.Dispose());
             Stop(ref _clipboard, c => c.Dispose());
             Stop(ref _sensors, s => s.Dispose());
+            Stop(ref _badUsb, m => m.Dispose());
         }
     }
 }

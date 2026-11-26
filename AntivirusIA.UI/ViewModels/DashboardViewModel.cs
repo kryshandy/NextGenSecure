@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows.Data;
 using System.Windows.Threading;
@@ -46,6 +46,7 @@ public sealed partial class DashboardViewModel : ObservableObject, IPageViewMode
             new(protection.Network, "Icon.Globe", null, null),
             new(protection.Clipboard, "Icon.Clipboard", () => settings.ClipboardEnabled, v => { settings.ClipboardEnabled = v; Apply(); }),
             new(protection.Sensors, "Icon.Camera", () => settings.SensorsEnabled, v => { settings.SensorsEnabled = v; Apply(); }),
+            new(protection.BadUsb, "Icon.Keyboard", () => settings.BadUsbEnabled, v => { settings.BadUsbEnabled = v; Apply(); }),
             new(protection.Paranoia, "Icon.Lock", () => settings.ParanoiaEnabled, v => { settings.ParanoiaEnabled = v; Apply(); }),
         ];
 

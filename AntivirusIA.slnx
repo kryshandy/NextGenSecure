@@ -9,6 +9,8 @@
   <Project Path="CoreGuard.AmsiProvider.Tests/CoreGuard.AmsiProvider.Tests.csproj" />
   <Project Path="CoreGuard.Behavior/CoreGuard.Behavior.csproj" />
   <Project Path="CoreGuard.Behavior.Tests/CoreGuard.Behavior.Tests.csproj" />
+  <Project Path="CoreGuard.Devices/CoreGuard.Devices.csproj" />
+  <Project Path="CoreGuard.Devices.Tests/CoreGuard.Devices.Tests.csproj" />
   <Project Path="CoreGuard.Extension/CoreGuard.Extension.csproj" />
   <Project Path="CoreGuard.Extension.Tests/CoreGuard.Extension.Tests.csproj" />
   <Project Path="CoreGuard.Ipc/CoreGuard.Ipc.csproj" />
