@@ -13,7 +13,8 @@ public static class ServiceIdentity
 
 /// <summary>
 /// Cœur du service : héberge les modules qui ont besoin de privilèges système et ne dépendent pas de la
-/// session de l'utilisateur (télémétrie ETW des processus et réponse associée), publie état et alertes sur
+/// session de l'utilisateur (télémétrie ETW des processus, canaris anti-ransomware avec attribution par audit NTFS,
+/// et réponse associée), publie état et alertes sur
 /// le pipe <see cref="IpcContract.PipeName"/>, et assure l'auto-défense :
 /// - DACL du processus durcie (arrêt, suspension, injection refusés hors SYSTEM) ;
 /// - watchdog mutuel (chaque processus relance l'autre s'il est tué) ;
@@ -34,6 +35,7 @@ public sealed class ProtectionWorker(
     private ModuleStatus _selfDefense = new(ServiceModules.SelfDefense, "Disabled", "Désactivée (mode développement)");
     private PipeServer? _server;
     private EtwProcessMonitor? _etw;
+    private CanaryGuard? _canaries;
     private int _stopAccepted;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -45,6 +47,7 @@ public sealed class ProtectionWorker(
 
         // ETW d'abord : son démarrage ouvre le processus courant, ce que la DACL durcie restreint ensuite
         StartBehavior();
+        StartCanaries();
         if (options.Supervise) await StartSelfDefenseAsync();
         logger.LogInformation("CoreGuard démarré (PID {Pid}, élevé : {Elevated}, actions : {Provider}, auto-défense : {Harden}, mot de passe : {Pwd}).",
             Environment.ProcessId, Environment.IsPrivilegedProcess, actions.Name, options.Harden, stopAuthenticator.IsConfigured);
@@ -113,6 +116,25 @@ public sealed class ProtectionWorker(
         lifetime.StopApplication();
     }
 
+    // ---------- Anti-ransomware (canaris + audit NTFS) ----------
+
+    private void StartCanaries()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        try
+        {
+            var guard = new CanaryGuard(actions, Publish, logger);
+            guard.Start();
+            _canaries = guard;
+            logger.LogInformation("Anti-ransomware : {Status}", guard.StatusText);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            logger.LogError("Canaris indisponibles : {Message}", ex.Message);
+        }
+        _server?.BroadcastStatus();
+    }
+
     // ---------- Comportement (ETW) ----------
 
     private void StartBehavior()
@@ -171,8 +193,12 @@ public sealed class ProtectionWorker(
     {
         ModuleStatus behavior, selfDefense;
         lock (_gate) { behavior = _behavior; selfDefense = _selfDefense; }
+        var guard = _canaries;
+        var canaries = guard is { CanaryCount: > 0 }
+            ? new ModuleStatus(ServiceModules.Canaries, "Active", guard.StatusText)
+            : new ModuleStatus(ServiceModules.Canaries, "Unavailable", guard?.StatusText ?? "Non démarrés");
         return new ServiceStatus(IpcContract.ProtocolVersion, Environment.ProcessId, _startedUtc,
-            actions.Name, actions.IsKernelBacked, Environment.IsPrivilegedProcess, [behavior, selfDefense])
+            actions.Name, actions.IsKernelBacked, Environment.IsPrivilegedProcess, [behavior, canaries, selfDefense])
         {
             StopPasswordConfigured = stopAuthenticator.IsConfigured
         };
@@ -185,6 +211,8 @@ public sealed class ProtectionWorker(
         watchdog.SignalLegitimateStop();
         _etw?.Dispose();
         _etw = null;
+        _canaries?.Dispose(); // retire les canaris du disque
+        _canaries = null;
         if (_server is not null) await _server.DisposeAsync();
         _server = null;
         await base.StopAsync(cancellationToken);

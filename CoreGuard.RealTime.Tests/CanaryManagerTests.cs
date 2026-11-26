@@ -1,4 +1,4 @@
-namespace CoreGuard.RealTime.Tests;
+﻿namespace CoreGuard.RealTime.Tests;
 
 internal sealed class FakeResponder : IThreatResponder
 {
@@ -36,6 +36,66 @@ public sealed class CanaryManagerTests
 
     private static Task<bool> WaitAsync(FakeResponder r) => r.Signal.WaitAsync(TimeSpan.FromSeconds(10));
 
+    private static byte[]? TryRead(string path)
+    {
+        try { return File.ReadAllBytes(path); }
+        catch (IOException) { return null; }
+    }
+
+    // Comme un ransomware : ouverture du fichier EXISTANT en écriture (fonctionne aussi sur un fichier caché)
+    // (avec quelques essais : l'antivirus ou l'indexeur peut tenir brièvement le fichier qui vient d'être écrit)
+    private static void Overwrite(string path, string text)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                using var fs = new FileStream(path, FileMode.Open, FileAccess.Write, FileShare.ReadWrite);
+                fs.SetLength(0);
+                fs.Write(System.Text.Encoding.UTF8.GetBytes(text));
+                return;
+            }
+            catch (IOException) when (attempt < 20)
+            {
+                Thread.Sleep(100);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void Les_canaris_sont_caches_et_signales_a_l_ecriture()
+    {
+        using var m = new CanaryManager(new FakeResponder(), () => null);
+        var written = new List<string>();
+        m.CanaryWritten += (_, p) => { lock (written) written.Add(p); };
+
+        var created = m.Deploy([_dir]);
+
+        Assert.IsTrue(created.All(p => File.GetAttributes(p).HasFlag(FileAttributes.Hidden)));
+        Assert.HasCount(created.Count, written);
+        Assert.IsTrue(created.All(m.IsCanary));
+        CollectionAssert.Contains(CanaryManager.DefaultCanaryNames, "!00_confidentiel.docx");
+    }
+
+    [TestMethod]
+    public void Un_second_depot_reecrit_les_canaris_caches()
+    {
+        using var first = new CanaryManager(new FakeResponder(), () => null);
+        first.Deploy([_dir]);
+        using var second = new CanaryManager(new FakeResponder(), () => null);
+        var again = second.Deploy([_dir]);
+        Assert.HasCount(CanaryManager.DefaultCanaryNames.Length, again, "un canari caché existant doit pouvoir être réécrit");
+    }
+
+    [TestMethod]
+    public void Remove_supprime_aussi_les_canaris_caches()
+    {
+        using var m = new CanaryManager(new FakeResponder(), () => null);
+        var created = m.Deploy([_dir]);
+        m.Remove();
+        Assert.IsFalse(created.Any(File.Exists));
+    }
+
     [TestMethod]
     public void Deploy_CreatesCanaries_AndSkipsMissingFolders()
     {
@@ -54,16 +114,17 @@ public sealed class CanaryManagerTests
         var original = File.ReadAllBytes(target);
         await Task.Delay(1000); // laisse expirer la fenêtre d'auto-écriture
 
-        File.WriteAllText(target, "CHIFFRE PAR RANSOMWARE");
+        Overwrite(target, "CHIFFRE PAR RANSOMWARE");
 
         Assert.IsTrue(await WaitAsync(r), "alerte attendue");
         Assert.AreEqual(target, r.Alerts[0].CanaryPath, ignoreCase: true);
         Assert.AreEqual(1234, r.Alerts[0].SuspectPid);
 
+        // Lecture tolérante : pendant la restauration, le fichier est momentanément verrouillé en écriture
         var deadline = DateTime.UtcNow.AddSeconds(5);
-        while (DateTime.UtcNow < deadline && !File.ReadAllBytes(target).SequenceEqual(original))
+        while (DateTime.UtcNow < deadline && !(TryRead(target)?.SequenceEqual(original) ?? false))
             await Task.Delay(100);
-        CollectionAssert.AreEqual(original, File.ReadAllBytes(target));
+        CollectionAssert.AreEqual(original, TryRead(target));
     }
 
     [TestMethod]

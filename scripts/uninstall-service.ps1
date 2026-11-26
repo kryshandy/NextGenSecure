@@ -2,6 +2,8 @@
 .SYNOPSIS
   Arrête (mot de passe de protection requis) et supprime le service Windows CoreGuard, puis efface ses fichiers.
   Le secret %ProgramData%\CoreGuard\protection.json est conservé ; supprimez-le à la main si besoin.
+  La stratégie d'audit « Système de fichiers » activée à l'installation est laissée telle quelle ; pour la désactiver :
+      auditpol /set /subcategory:"{0CCE921D-69AE-11D9-BED3-505054503030}" /success:disable
   À lancer depuis une console PowerShell **administrateur** : ./scripts/uninstall-service.ps1
 #>
 [CmdletBinding()]

@@ -10,10 +10,13 @@ namespace CoreGuard.RealTime;
 /// </summary>
 public sealed class CanaryManager : IDisposable
 {
-    /// <summary>Noms à préfixes multiples pour être triés/rencontrés en premier par un ransomware.</summary>
+    /// <summary>
+    /// Noms de la spécification (préfixes « ! », « _ », « ~ » : rencontrés en premier par un ransomware qui
+    /// parcourt les dossiers dans l'ordre alphabétique, ou en dernier selon le tri), plus deux leurres « appâts ».
+    /// </summary>
     public static readonly string[] DefaultCanaryNames =
     [
-        "!00_confidentiel.docx", "_zz_backup.xlsx", "~000_archive.docx", "!!_comptes_2024.xlsx", "_00_mots_de_passe.txt"
+        "!00_confidentiel.docx", "_zz_confidentiel.docx", "~000_backup.xlsx", "!!_comptes_2024.xlsx", "_00_mots_de_passe.txt"
     ];
 
     private sealed record CanaryEntry(byte[] Cipher, byte[] Iv);
@@ -22,6 +25,9 @@ public sealed class CanaryManager : IDisposable
     private readonly Func<int?> _pidResolver;
     private readonly ConcurrentDictionary<string, CanaryEntry> _canaries = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, DateTime> _selfWrites = new(StringComparer.OrdinalIgnoreCase);
+    // Une écriture produit plusieurs notifications (troncature, écriture, fermeture) : une seule alerte par rafale
+    private readonly ConcurrentDictionary<string, DateTime> _lastTrigger = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly TimeSpan TriggerCoalesce = TimeSpan.FromMilliseconds(1500);
     private readonly List<FileSystemWatcher> _watchers = [];
     private readonly byte[] _key = RandomNumberGenerator.GetBytes(32); // clé éphémère, jamais écrite sur disque
     private readonly CancellationTokenSource _cts = new();
@@ -33,6 +39,18 @@ public sealed class CanaryManager : IDisposable
 
     /// <summary>Restaurer automatiquement le canari après alerte (défaut : true).</summary>
     public bool AutoRestore { get; init; } = true;
+
+    /// <summary>Déposer les canaris avec l'attribut « caché » (défaut : true), pour que l'utilisateur ne les ouvre pas.</summary>
+    public bool Hidden { get; init; } = true;
+
+    /// <summary>Levé après chaque écriture d'un canari par le gestionnaire (dépôt ou restauration) : chemin écrit.</summary>
+    public event EventHandler<string>? CanaryWritten;
+
+    /// <summary>Levé pour un incident non fatal (tampon du watcher saturé, dossier disparu…).</summary>
+    public event EventHandler<string>? Warning;
+
+    /// <summary>Vrai si le chemin est un canari déployé.</summary>
+    public bool IsCanary(string path) => _canaries.ContainsKey(path);
 
     public CanaryManager(IThreatResponder responder, Func<int?>? pidResolver = null)
     {
@@ -71,8 +89,7 @@ public sealed class CanaryManager : IDisposable
                 try
                 {
                     var content = GenerateFakeContent(name);
-                    MarkSelfWrite(path);
-                    File.WriteAllBytes(path, content);
+                    WriteCanaryWithRetry(path, content);
                     _canaries[path] = Encrypt(content);
                     created.Add(path);
                     deployedHere = true;
@@ -98,8 +115,8 @@ public sealed class CanaryManager : IDisposable
                 var content = Decrypt(entry);
                 var dir = Path.GetDirectoryName(path);
                 if (dir is not null && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
-                MarkSelfWrite(path);
-                File.WriteAllBytes(path, content);
+
+                WriteCanaryWithRetry(path, content);
                 return true;
             }
             catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
@@ -115,9 +132,41 @@ public sealed class CanaryManager : IDisposable
         StopWatchers();
         foreach (var path in _canaries.Keys)
         {
-            try { File.Delete(path); } catch { /* best-effort */ }
+            try
+            {
+                if (File.Exists(path)) File.SetAttributes(path, FileAttributes.Normal);
+                File.Delete(path);
+            }
+            catch { /* best-effort */ }
         }
         _canaries.Clear();
+    }
+
+    // Le fichier peut être tenu un instant (antivirus, indexeur, le ransomware lui-même) : on insiste ~3 s
+    private void WriteCanaryWithRetry(string path, byte[] content)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                WriteCanary(path, content);
+                return;
+            }
+            catch (IOException) when (attempt < 30 && !_disposed)
+            {
+                Thread.Sleep(100);
+            }
+        }
+    }
+
+    // Un fichier caché ne peut pas être réécrit tel quel (accès refusé) : attributs remis à zéro, écriture, puis caché
+    private void WriteCanary(string path, byte[] content)
+    {
+        MarkSelfWrite(path);
+        if (File.Exists(path)) File.SetAttributes(path, FileAttributes.Normal);
+        File.WriteAllBytes(path, content);
+        if (Hidden) File.SetAttributes(path, FileAttributes.Hidden);
+        try { CanaryWritten?.Invoke(this, path); } catch { /* un abonné fautif ne bloque pas le dépôt */ }
     }
 
     private void StartWatcher(string folder)
@@ -137,6 +186,9 @@ public sealed class CanaryManager : IDisposable
                 if (_canaries.ContainsKey(e.OldFullPath)) Handle(e.OldFullPath, "Renamed");
                 else Handle(e.FullPath, "Renamed"); // renommé VERS un nom de canari (écrasement)
             };
+            // Tampon saturé (rafale d'écritures, typique d'un ransomware) : des événements ont pu être perdus.
+            // On recrée le watcher et on vérifie l'intégrité de chaque canari du dossier.
+            w.Error += (_, e) => OnWatcherError(folder, w, e.GetException());
             w.EnableRaisingEvents = true;
             lock (_gate) _watchers.Add(w);
         }
@@ -146,11 +198,43 @@ public sealed class CanaryManager : IDisposable
         }
     }
 
+    private void OnWatcherError(string folder, FileSystemWatcher failed, Exception error)
+    {
+        if (_disposed) return;
+        try { Warning?.Invoke(this, $"Surveillance de {folder} interrompue ({error.GetType().Name}) : redémarrage et vérification des canaris."); }
+        catch { /* abonné fautif */ }
+
+        lock (_gate)
+        {
+            _watchers.Remove(failed);
+            try { failed.Dispose(); } catch { /* déjà libéré */ }
+        }
+        StartWatcher(folder);
+        _ = Task.Run(() => VerifyFolder(folder));
+    }
+
+    /// <summary>Compare chaque canari du dossier à sa copie : tout écart déclenche l'alerte comme une modification.</summary>
+    private void VerifyFolder(string folder)
+    {
+        foreach (var (path, entry) in _canaries.ToArray())
+        {
+            if (!string.Equals(Path.GetDirectoryName(path), Path.TrimEndingDirectorySeparator(folder), StringComparison.OrdinalIgnoreCase)) continue;
+            bool intact;
+            try { intact = File.Exists(path) && File.ReadAllBytes(path).AsSpan().SequenceEqual(Decrypt(entry)); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { intact = false; }
+            if (!intact) Handle(path, File.Exists(path) ? "Modified" : "Deleted");
+        }
+    }
+
     private void Handle(string path, string operation)
     {
         if (_disposed || !_canaries.ContainsKey(path)) return;
         // Ignore l'écho de nos propres écritures (déploiement / restauration).
         if (_selfWrites.TryGetValue(path, out var until) && DateTime.UtcNow < until) return;
+
+        DateTime now = DateTime.UtcNow;
+        if (_lastTrigger.TryGetValue(path, out var last) && now - last < TriggerCoalesce) return;
+        _lastTrigger[path] = now;
 
         var alert = new CanaryAlert(path, operation, DateTime.UtcNow, SafeResolvePid());
         try { CanaryTriggered?.Invoke(this, alert); } catch { /* un abonné fautif ne doit pas casser la détection */ }

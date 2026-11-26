@@ -7,6 +7,7 @@
     (dossier modifiable uniquement par les administrateurs : un programme utilisateur ne peut pas remplacer le binaire) ;
   - crée le service "CoreGuardService" (LocalSystem, démarrage automatique, redémarrage en cas d'arrêt anormal) ;
   - demande le mot de passe de protection à la première installation (exigé ensuite pour tout arrêt) ;
+  - active l'audit « Système de fichiers » (succès), utilisé pour identifier le processus qui touche un leurre ;
   - le démarre.
   À lancer depuis une console PowerShell **administrateur**, à la racine du dépôt :
       ./scripts/install-service.ps1
@@ -63,6 +64,12 @@ if (-not (Test-Path $secret)) {
     & $exe --set-password
     if ($LASTEXITCODE -ne 0) { throw "Mot de passe de protection non défini (code $LASTEXITCODE)." }
 }
+
+# Audit « Système de fichiers » (succès) : permet au service d'identifier avec certitude le processus qui écrit
+# dans un fichier leurre (événement 4663) et de l'arrêter. Seuls les objets portant une règle d'audit (les
+# leurres) génèrent des événements. GUID de sous-catégorie : indépendant de la langue de Windows.
+auditpol.exe /set /subcategory:"{0CCE921D-69AE-11D9-BED3-505054503030}" /success:enable | Out-Null
+if ($LASTEXITCODE -ne 0) { Write-Warning "Activation de l'audit impossible : les ransomwares seront détectés et les leurres restaurés, sans arrêt automatique." }
 
 # Redémarrage automatique après un arrêt anormal : 5 s, 5 s, puis 30 s ; compteur remis à zéro après 1 jour
 sc.exe failure $serviceName reset= 86400 actions= restart/5000/restart/5000/restart/30000 | Out-Null

@@ -4,5 +4,16 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
+    <!-- Requis par [LibraryImport] (stratégie d'audit) -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Lecture du journal Sécurité (événement 4663) pour l'attribution des écritures sur les canaris -->
+    <PackageReference Include="System.Diagnostics.EventLog" Version="11.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CoreGuard.RealTime.Tests" />
+  </ItemGroup>
 </Project>

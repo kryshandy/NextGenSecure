@@ -113,4 +113,5 @@ public static class ServiceModules
 {
     public const string Behavior = "Behavior";
     public const string SelfDefense = "SelfDefense";
+    public const string Canaries = "Canaries";
 }

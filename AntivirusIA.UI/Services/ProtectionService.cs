@@ -74,7 +74,7 @@ public sealed class ProtectionService : IDisposable
         Modules = [Files, Canaries, Behavior, Persistence, Network, Clipboard, Sensors, Paranoia];
 
         // Le service (SYSTEM) prend la télémétrie ETW dès qu'il est joignable, et la rend s'il disparaît
-        _service.StatusChanged += () => _ = ApplyBehaviorAsync();
+        _service.StatusChanged += () => _ = ApplyServiceModulesAsync();
     }
 
     public int ActiveCount => Modules.Count(m => m.State == ModuleState.Active);
@@ -140,6 +140,17 @@ public sealed class ProtectionService : IDisposable
     private void ApplyCanaries()
     {
         if (_canaries is not null) { _canaries.Remove(); _canaries.Dispose(); _canaries = null; }
+
+        // Service installé : il gère seul les canaris (avec arrêt du processus coupable si l'audit est actif)
+        if (ServiceLink.ServiceInstalled)
+        {
+            if (_service.HandlesCanaries)
+                Set(Canaries, ModuleState.Active, "Service : " + (_service.CanariesText ?? "actifs"));
+            else
+                Set(Canaries, ModuleState.Unavailable, "Gérés par le service CoreGuard (actuellement injoignable)");
+            return;
+        }
+
         if (!_settings.CanariesEnabled) { Set(Canaries, ModuleState.Disabled, "Désactivé"); return; }
 
         Guard(Canaries, () =>
@@ -153,13 +164,14 @@ public sealed class ProtectionService : IDisposable
     }
 
     // ---- Comportement des processus (ETW : droits administrateur requis) ----
-    /// <summary>Réapplique uniquement le module comportemental (changement d'état du service).</summary>
-    public Task ApplyBehaviorAsync() => Task.Run(() =>
+    /// <summary>Réapplique les modules que le service peut assurer (changement d'état du service).</summary>
+    public Task ApplyServiceModulesAsync() => Task.Run(() =>
     {
         lock (_gate)
         {
             if (_disposed) return;
             ApplyBehavior();
+            ApplyCanaries();
         }
         UiThread.Post(() => ModulesChanged?.Invoke());
     });

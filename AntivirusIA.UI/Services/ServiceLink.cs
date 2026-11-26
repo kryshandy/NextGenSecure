@@ -59,6 +59,34 @@ public sealed class ServiceLink : IDisposable
     /// <summary>Vrai si le service assure lui-même la télémétrie ETW des processus.</summary>
     public bool HandlesBehavior => IsConnected && _status!.IsModuleActive(ServiceModules.Behavior);
 
+    /// <summary>Vrai si le service assure les canaris anti-ransomware.</summary>
+    public bool HandlesCanaries => IsConnected && _status!.IsModuleActive(ServiceModules.Canaries);
+
+    /// <summary>Texte d'état des canaris côté service (null si non connecté).</summary>
+    public string? CanariesText => _status?.Modules.FirstOrDefault(m => m.Name == ServiceModules.Canaries)?.Text;
+
+    /// <summary>
+    /// Vrai si le service CoreGuard est installé (ou si le mode développement est actif). Dans ce cas, l'UI ne
+    /// dépose jamais ses propres canaris : deux gestionnaires sur les mêmes fichiers se prendraient mutuellement
+    /// pour un ransomware.
+    /// </summary>
+    public static bool ServiceInstalled
+    {
+        get
+        {
+            if (DevServiceAllowed) return true;
+            try
+            {
+                using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\CoreGuardService");
+                return key is not null;
+            }
+            catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException)
+            {
+                return false;
+            }
+        }
+    }
+
     /// <summary>Vrai si l'auto-défense du service (DACL durcie + watchdog) est active.</summary>
     public bool SelfDefenseActive => IsConnected && _status!.IsModuleActive(ServiceModules.SelfDefense);
 

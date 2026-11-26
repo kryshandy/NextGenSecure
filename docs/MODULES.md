@@ -10,7 +10,7 @@ Chaque module est un projet isolé qui ne référence que `AntivirusIA.Core`. Le
 | `AntivirusIA.Engines` | Signatures multi-sources, règles de contenu (`rules.json`), heuristiques, entropie, PE statique, Authenticode | Complet |
 | `AntivirusIA.AI` | LLM local (LLamaSharp) pour l'explication ; classifieur ONNX EMBER prévu | Partiel |
 | `AntivirusIA.Infrastructure` | Quarantaine AES-256-GCM (clé DPAPI, ACL NTFS), historique SQLite | Complet |
-| `CoreGuard.RealTime` | Surveillance de dossiers (`FileSystemWatcher`), canaris anti-ransomware | Partiel (arrêt du processus simulé) |
+| `CoreGuard.RealTime` | Surveillance de dossiers (`FileSystemWatcher`), canaris cachés anti-ransomware, attribution par audit NTFS (événement 4663) | Complet |
 | `CoreGuard.Behavior` | ETW processus, règles comportementales, client AMSI, gardien de persistance | Partiel (suppression des clichés arrêtée, autres règles en alerte) |
 | `CoreGuard.Network` | Pare-feu Windows (COM), ports, kill switch ; WFP natif prévu | Partiel |
 | `CoreGuard.Response` | `UserModeActionProvider` : implémentation user-mode de `IKernelActionProvider` (arrêt, suspension, blocage réseau, ACL NTFS, DACL de processus) | Complet (étape 1) |
@@ -20,4 +20,4 @@ Chaque module est un projet isolé qui ne référence que `AntivirusIA.Core`. Le
 | `CoreGuard.Extension` | Extension MV3, hôte Native Messaging, OCR anti-phishing, QR | Partiel (hôte à enregistrer à la main) |
 | `CoreGuard.Ipc` | Canal UI ↔ service : trames JSON bornées, `PipeServer` (ACL, diffusion), `ServiceClient` (rejet des serveurs hors session 0), arrêt authentifié (PBKDF2 + HMAC) | Complet |
 | `CoreGuard.Service` | Service Windows LocalSystem : télémétrie ETW, arrêt des suppressions de clichés, état et alertes sur le pipe, auto-défense (DACL, watchdog mutuel, arrêt par mot de passe) | Partiel (autres modules système à migrer) |
-| Tests (`*.Tests`) | 270 tests MSTest | Complet pour l'existant |
+| Tests (`*.Tests`) | 292 tests MSTest | Complet pour l'existant |

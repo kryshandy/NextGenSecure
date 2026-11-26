@@ -13,6 +13,9 @@ public sealed class RealtimeFileMonitor : IDisposable
     /// <summary>Levé pour chaque nouveau fichier (chemin complet).</summary>
     public event EventHandler<string>? NewFileDetected;
 
+    /// <summary>Levé quand des événements ont pu être perdus (tampon saturé).</summary>
+    public event EventHandler<string>? Warning;
+
     /// <summary>Démarre la surveillance ; retourne la liste des dossiers effectivement surveillés.</summary>
     public IReadOnlyList<string> Start(IEnumerable<string> folders, bool includeSubdirectories = true)
     {
@@ -31,6 +34,8 @@ public sealed class RealtimeFileMonitor : IDisposable
                 };
                 w.Created += (_, e) => Raise(e.FullPath);
                 w.Renamed += (_, e) => Raise(e.FullPath);
+                // Tampon saturé : on signale la perte possible d'événements (le watcher reste actif)
+                w.Error += (_, e) => { try { Warning?.Invoke(this, $"Événements perdus sur {folder} : {e.GetException().GetType().Name}"); } catch { } };
                 w.EnableRaisingEvents = true;
                 lock (_gate) _watchers.Add(w);
                 watched.Add(folder);

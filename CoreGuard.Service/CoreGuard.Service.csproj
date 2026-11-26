@@ -10,6 +10,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="CoreGuard.Service.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.15" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.15" />
   </ItemGroup>
@@ -19,6 +23,7 @@
     <ProjectReference Include="..\CoreGuard.Behavior\CoreGuard.Behavior.csproj" />
     <ProjectReference Include="..\CoreGuard.Ipc\CoreGuard.Ipc.csproj" />
     <ProjectReference Include="..\CoreGuard.Network\CoreGuard.Network.csproj" />
+    <ProjectReference Include="..\CoreGuard.RealTime\CoreGuard.RealTime.csproj" />
     <ProjectReference Include="..\CoreGuard.Response\CoreGuard.Response.csproj" />
   </ItemGroup>
 </Project>
