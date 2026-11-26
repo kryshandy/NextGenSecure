@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Fournisseur AMSI : serveur COM in-process chargé par amsi.dll dans chaque processus qui analyse des scripts
+    (PowerShell, wscript/cscript, Office VBA…). Compilé en NativeAOT : aucune dépendance au runtime .NET du
+    processus hôte. Publication : scripts/build-amsi-provider.ps1 (outils C++ de Visual Studio requis).
+    Une compilation ordinaire (dotnet build) produit une DLL managée inutilisable par AMSI : seule la sortie
+    de « dotnet publish -r win-x64 » est enregistrable.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PublishAot>true</PublishAot>
+    <IsAotCompatible>true</IsAotCompatible>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <AssemblyName>CoreGuard.AmsiProvider</AssemblyName>
+  </PropertyGroup>
+</Project>

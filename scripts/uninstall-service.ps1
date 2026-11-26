@@ -36,6 +36,16 @@ if ($service) {
     Write-Host "Service $serviceName absent."
 }
 
+# Fournisseur AMSI : désenregistrement (la DLL encore chargée par des PowerShell ouverts est supprimée au mieux)
+$clsid = '{6B3C2F1E-8A4D-4C7B-9E21-C0A5E9F4D317}'
+Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\AMSI\Providers\$clsid" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "HKLM:\SOFTWARE\Classes\CLSID\$clsid" -Recurse -Force -ErrorAction SilentlyContinue
+$amsiDir = Join-Path (Split-Path -Parent $InstallDir) 'Amsi'
+if (Test-Path $amsiDir) {
+    try { Remove-Item -Recurse -Force $amsiDir -ErrorAction Stop; Write-Host "Fournisseur AMSI supprimé." }
+    catch { Write-Warning "Fournisseur AMSI désenregistré ; DLL encore utilisée ($amsiDir) : fermez les fenêtres PowerShell puis supprimez le dossier." }
+}
+
 if (Test-Path $InstallDir) {
     Remove-Item -Recurse -Force $InstallDir
     Write-Host "Fichiers supprimés : $InstallDir"

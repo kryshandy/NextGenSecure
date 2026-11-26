@@ -45,7 +45,8 @@ CoreGuard.sln
 ├─ CoreGuard.Network          Pare-feu Windows (COM), énumération ports, kill switch réseau — WFP natif prévu
 ├─ CoreGuard.Response         Actions de réponse user-mode (IKernelActionProvider) : arrêt, suspension, ACL, DACL
 ├─ CoreGuard.Ipc              Canal UI ↔ service (named pipe local, ACL, vérification du serveur)
-├─ CoreGuard.Service          Service Windows LocalSystem : télémétrie ETW et réponse
+├─ CoreGuard.Service          Service Windows LocalSystem : ETW, canaris, analyse AMSI, auto-défense
+├─ CoreGuard.AmsiProvider     Fournisseur AMSI natif (NativeAOT, COM) chargé dans PowerShell & co.
 ├─ CoreGuard.Vault            Coffre-fort mots de passe (SQLite + Argon2id + AES-GCM)
 ├─ CoreGuard.Privacy          Privacy Guard (caméra/micro), presse-papiers, Mode Paranoïa
 ├─ AntivirusIA.UI             Interface WPF (MVVM) — dashboard temps réel
@@ -69,7 +70,7 @@ CoreGuard.sln
 - ✅ **Signature Authenticode** (WinVerifyTrust, hors ligne) : atténue les heuristiques, jamais les preuves fortes
 - ✅ **IA niveau 2** — LLM local (Llama 3.2 3B via LLamaSharp) : explique les alertes, **ne décide jamais** du blocage
 - 🟡 **ETW** — règles Office→shell (Base64), `vssadmin`/`wmic`/`diskshadow`, persistance (droits admin requis ; alerte sans blocage)
-- 🟡 **AMSI** — client `AmsiScanBuffer` ; l'interception des scripts (fournisseur AMSI) est prévue
+- ✅ **AMSI** — fournisseur natif enregistré auprès de Windows : chaque script PowerShell / VBScript / JScript / macro est analysé par le service **avant exécution** (règles + Base64 décodé) et bloqué s'il est malveillant. Compilation : `scripts/build-amsi-provider.ps1` (outils C++ de Visual Studio) ; enregistrement par `install-service.ps1`
 - ⏳ **IA niveau 1** — classifieur statique ONNX (type EMBER), scoring < 50 ms
 
 **Réaction / protection**
@@ -136,7 +137,7 @@ dotnet run --project AntivirusIA.UI
 dotnet test AntivirusIA.slnx
 ```
 
-292 tests MSTest (moteurs, quarantaine, règles, comportement, réseau, réponse, IPC, vie privée, coffre, extension). Procédure de test manuelle : [`docs/TESTING.md`](docs/TESTING.md).
+306 tests MSTest (moteurs, quarantaine, règles, comportement, réseau, réponse, IPC, service, fournisseur AMSI natif, vie privée, coffre, extension). Procédure de test manuelle : [`docs/TESTING.md`](docs/TESTING.md).
 
 ---
 

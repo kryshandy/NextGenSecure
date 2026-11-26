@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../CoreGuard.Service/CoreGuard.Service.csproj" />
+    <ProjectReference Include="../AntivirusIA.Engines/AntivirusIA.Engines.csproj" />
   </ItemGroup>
 
 </Project>

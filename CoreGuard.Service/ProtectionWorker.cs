@@ -25,6 +25,7 @@ public sealed class ProtectionWorker(
     UserModeActionProvider userMode,
     StopAuthenticator stopAuthenticator,
     WatchdogSupervisor watchdog,
+    ScriptScanner scripts,
     ServiceOptions options,
     IHostApplicationLifetime lifetime,
     ILogger<ProtectionWorker> logger) : BackgroundService
@@ -37,6 +38,8 @@ public sealed class ProtectionWorker(
     private EtwProcessMonitor? _etw;
     private CanaryGuard? _canaries;
     private int _stopAccepted;
+    private int _amsiScanned, _amsiBlocked;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> _amsiAlerted = new();
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -104,8 +107,52 @@ public sealed class ProtectionWorker(
                     _ = StopLegitimatelyAsync();
                 return new IpcEnvelope(IpcContract.Types.StopResult, StopResult: result);
 
+            case IpcContract.Types.AmsiScan:
+                return new IpcEnvelope(IpcContract.Types.AmsiResult, AmsiVerdict: ScanScript(request.Amsi));
+
             default:
                 return null;
+        }
+    }
+
+    // ---------- AMSI ----------
+
+    private AmsiVerdict ScanScript(AmsiScanRequest? request)
+    {
+        AmsiVerdict verdict = scripts.Evaluate(request);
+        Interlocked.Increment(ref _amsiScanned);
+        if (verdict.Detected) Interlocked.Increment(ref _amsiBlocked);
+
+        if (verdict.Score >= ScriptScanner.SuspectScore)
+        {
+            string app = request?.App ?? "?";
+            // Une alerte par application et par motif toutes les 30 s (PowerShell soumet chaque bloc de script)
+            string key = app + "|" + verdict.Reason;
+            DateTime now = DateTime.UtcNow;
+            if (!_amsiAlerted.TryGetValue(key, out DateTime last) || now - last > TimeSpan.FromSeconds(30))
+            {
+                _amsiAlerted[key] = now;
+                Publish(verdict.Detected ? "Critical" : "Warning", "AMSI",
+                    verdict.Detected ? $"Script bloqué : {app}" : $"Script suspect : {app}",
+                    $"Score {verdict.Score}/100 — {verdict.Reason}");
+                logger.LogWarning("AMSI {Verdict} ({App}, score {Score}) : {Reason}",
+                    verdict.Detected ? "bloqué" : "suspect", app, verdict.Score, verdict.Reason);
+            }
+        }
+        return verdict;
+    }
+
+    private static bool AmsiProviderRegistered()
+    {
+        if (!OperatingSystem.IsWindows()) return false;
+        try
+        {
+            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(AmsiProviderInfo.ProvidersKey);
+            return key is not null;
+        }
+        catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException)
+        {
+            return false;
         }
     }
 
@@ -197,8 +244,11 @@ public sealed class ProtectionWorker(
         var canaries = guard is { CanaryCount: > 0 }
             ? new ModuleStatus(ServiceModules.Canaries, "Active", guard.StatusText)
             : new ModuleStatus(ServiceModules.Canaries, "Unavailable", guard?.StatusText ?? "Non démarrés");
+        var amsi = AmsiProviderRegistered()
+            ? new ModuleStatus(ServiceModules.Amsi, "Active", $"Fournisseur AMSI enregistré : {_amsiScanned} contenu(s) analysé(s), {_amsiBlocked} bloqué(s)")
+            : new ModuleStatus(ServiceModules.Amsi, "Unavailable", "Fournisseur AMSI non enregistré (scripts/install-service.ps1)");
         return new ServiceStatus(IpcContract.ProtocolVersion, Environment.ProcessId, _startedUtc,
-            actions.Name, actions.IsKernelBacked, Environment.IsPrivilegedProcess, [behavior, canaries, selfDefense])
+            actions.Name, actions.IsKernelBacked, Environment.IsPrivilegedProcess, [behavior, canaries, amsi, selfDefense])
         {
             StopPasswordConfigured = stopAuthenticator.IsConfigured
         };

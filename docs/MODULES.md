@@ -19,5 +19,6 @@ Chaque module est un projet isolé qui ne référence que `AntivirusIA.Core`. Le
 | `AntivirusIA.UI` | Interface WPF (MVVM) et composition root (DI) ; client du service, héberge les modules liés à la session | Partiel |
 | `CoreGuard.Extension` | Extension MV3, hôte Native Messaging, OCR anti-phishing, QR | Partiel (hôte à enregistrer à la main) |
 | `CoreGuard.Ipc` | Canal UI ↔ service : trames JSON bornées, `PipeServer` (ACL, diffusion), `ServiceClient` (rejet des serveurs hors session 0), arrêt authentifié (PBKDF2 + HMAC) | Complet |
-| `CoreGuard.Service` | Service Windows LocalSystem : télémétrie ETW, arrêt des suppressions de clichés, état et alertes sur le pipe, auto-défense (DACL, watchdog mutuel, arrêt par mot de passe) | Partiel (autres modules système à migrer) |
-| Tests (`*.Tests`) | 292 tests MSTest | Complet pour l'existant |
+| `CoreGuard.Service` | Service Windows LocalSystem : télémétrie ETW, arrêt des suppressions de clichés, canaris + audit NTFS, analyse des scripts AMSI, auto-défense, état et alertes sur le pipe | Partiel (persistance HKLM et réseau à migrer) |
+| `CoreGuard.AmsiProvider` | Fournisseur AMSI natif (NativeAOT, COM) : transmet chaque script au service avant exécution, bloque sur son verdict | Complet (x64, non signé) |
+| Tests (`*.Tests`) | 306 tests MSTest | Complet pour l'existant |

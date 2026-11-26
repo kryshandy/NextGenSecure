@@ -57,6 +57,9 @@ builder.Services.AddSingleton<UserModeActionProvider>(sp =>
     });
 });
 builder.Services.AddSingleton<IKernelActionProvider>(sp => sp.GetRequiredService<UserModeActionProvider>());
+// Règles de contenu (Data/rules.json) partagées avec le moteur de scan, appliquées aux scripts soumis par AMSI
+builder.Services.AddSingleton(_ => new AntivirusIA.Engines.PatternRuleEngine(Path.Combine(AppContext.BaseDirectory, "Data", "rules.json")));
+builder.Services.AddSingleton<ScriptScanner>();
 builder.Services.AddHostedService<ProtectionWorker>();
 
 await builder.Build().RunAsync();

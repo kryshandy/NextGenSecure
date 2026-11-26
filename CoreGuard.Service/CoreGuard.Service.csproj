@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AntivirusIA.Core\AntivirusIA.Core.csproj" />
+    <ProjectReference Include="..\AntivirusIA.Engines\AntivirusIA.Engines.csproj" />
     <ProjectReference Include="..\CoreGuard.Behavior\CoreGuard.Behavior.csproj" />
     <ProjectReference Include="..\CoreGuard.Ipc\CoreGuard.Ipc.csproj" />
     <ProjectReference Include="..\CoreGuard.Network\CoreGuard.Network.csproj" />

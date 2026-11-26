@@ -1,13 +1,13 @@
 # Audit CoreGuard — alignement sur l'architecture consolidée
 
-*Audit du 24/11/2026 (commit `c0e9def`), mis à jour le 26/11/2026 après les étapes 1 à 4 du plan. Toutes les affirmations ci-dessous viennent d'une lecture du code et d'une exécution de `dotnet build` / `dotnet test`.*
+*Audit du 24/11/2026 (commit `c0e9def`), mis à jour le 26/11/2026 après les étapes 1 à 5 du plan. Toutes les affirmations ci-dessous viennent d'une lecture du code et d'une exécution de `dotnet build` / `dotnet test`.*
 
 ## Synthèse
 
 | Point | Constat |
 |---|---|
 | Compilation | `dotnet build AntivirusIA.slnx` : **0 erreur, 0 avertissement** (18 projets). |
-| Tests | `dotnet test` : **292 tests verts** (84 socle + 57 Behavior + 38 Extension + 24 Privacy + 23 Ipc + 20 RealTime + 15 Service + 11 Vault + 10 Network + 10 Response). |
+| Tests | `dotnet test` : **306 tests verts** (84 socle + 57 Behavior + 38 Extension + 24 Privacy + 23 Ipc + 22 Service + 20 RealTime + 11 Vault + 10 Network + 10 Response + 7 AmsiProvider, ces derniers sur la DLL native réelle). |
 | Ring 0 | Aucun code ne référence de driver : rien ne bloque sans `CoreGuard.Driver`. L'abstraction **`IKernelActionProvider`** (Core) est en place, avec **`UserModeActionProvider`** (CoreGuard.Response) câblé par défaut. |
 | Composants | Les 3 composants existent. **`CoreGuard.Service`** (Worker Service LocalSystem, session 0) héberge la télémétrie ETW et la réponse associée ; l'UI s'y connecte par named pipe et garde les modules liés à la session (presse-papiers, caméra/micro, canaris, téléchargements, persistance HKCU). Sans service, l'UI reprend ETW elle-même. |
 | Framework | Le code cible **.NET 10** (LTS), pas .NET 8/9. Aucune raison de redescendre : .NET 10 est la LTS actuelle et toutes les dépendances le supportent. |
@@ -25,7 +25,7 @@ Légende des états : **Complet** (fait ce que la spec demande) · **Partiel** (
 | — | Signatures, règles de contenu, Authenticode | `SignatureEngine.cs`, `PatternRuleEngine.cs`, `Data/rules.json`, `AuthenticodeVerifier.cs` | **Complet** | Base de signatures livrée minimale (EICAR) : à alimenter avec un flux public (format `.txt` supporté). |
 | 2 | IA niveau 1 (EMBER / ONNX) | — | **Absent** | Pas de package `Microsoft.ML.OnnxRuntime`, pas de modèle, pas d'extraction de features EMBER. Le README l'annonçait à tort. |
 | 3 | IA niveau 2 (LLM explication) | `AntivirusIA.AI/*` | **Complet** | LLamaSharp + Llama 3.2 3B GGUF, repli local si modèle absent, ne décide jamais. Désobfuscation de scripts non câblée (prompt d'explication seulement). |
-| 4 | AMSI | `CoreGuard.Behavior/AmsiScanner.cs` | **Squelette** | C'est un **client** AMSI (`AmsiScanBuffer` → demande l'avis de Defender). Il n'**intercepte** rien : intercepter PowerShell exige un **fournisseur AMSI** (DLL COM `IAntimalwareProvider` enregistrée). Non utilisé par l'UI. |
+| 4 | AMSI | `CoreGuard.AmsiProvider/*`, `CoreGuard.Service/ScriptScanner.cs` | **Complet (à valider installé)** | **Fournisseur AMSI** natif (NativeAOT, serveur COM `IAntimalwareProvider`) chargé par amsi.dll dans PowerShell, wscript/cscript, Office… : il transmet chaque contenu au service (pipe, 150 ms), qui applique les règles au texte et au Base64 décodé et répond « bloquer » (score ≥ 60 ou preuve forte). Fail-open si le service est absent. Testé sur la DLL native réelle (spécimen 01 bloqué de bout en bout). Restes : pas de version 32 bits, signature Authenticode non faite (Windows peut ignorer un fournisseur non signé), pas d'explication par le LLM dans le service. |
 | 5 | ETW comportemental | `EtwProcessMonitor.cs`, `BehaviorRuleEngine.cs` | **Partiel** | Règles Office→shell (+ Base64), `vssadmin`/`wmic`/`diskshadow`/WMI, persistance par ligne de commande : OK et testées. La suppression des clichés est **arrêtée par `TerminateProcess`** (PID exact fourni par ETW) ; les autres règles alertent seulement. Exige l'admin ; l'arrêt suit le démarrage (une commande très rapide peut avoir agi avant). |
 | 6 | Pare-feu WFP | `CoreGuard.Network/WindowsFirewall.cs` | **Partiel** | Passe par le **pare-feu COM** (`INetFwPolicy2`, règles par chemin), **pas par WFP** (`FwpmFilterAdd0`). Pas de blocage par PID. Kill switch implémenté mais non exposé dans l'UI. |
 | 7 | Quarantaine chiffrée | `AntivirusIA.Infrastructure/QuarantineService.cs` | **Partiel** | AES-256-GCM authentifié + clé DPAPI + **droits NTFS restreints** sur chaque `.quar` (héritage coupé, exécution refusée à tous). Dossier sous `%LocalAppData%` (accessible au même utilisateur tant que le service n'existe pas). |
@@ -59,7 +59,8 @@ Légende des états : **Complet** (fait ce que la spec demande) · **Partiel** (
 | `AntivirusIA.UI` | App (composition root DI), 5 vues, ViewModels, Services (Scan, Protection, AlertHub, Settings, Theme…) | Partiel : fonctionnel ; refonte visuelle en cours |
 | `CoreGuard.Response` | UserModeActionProvider (arrêt, suspension, blocage réseau, ACL NTFS, DACL de processus), Native | Complet pour l'étape 1 |
 | `CoreGuard.Ipc` | IpcContract (trames, messages), PipeServer (ACL, diffusion), ServiceClient (vérification session 0), StopAuthentication (PBKDF2 + HMAC) | Complet (état, alertes, arrêt authentifié) |
-| `CoreGuard.Service` | Program (hôte + CLI), ProtectionWorker (ETW, arrêt VSS, pipe, arrêt authentifié), Watchdog (surveillance mutuelle), ServiceHost (cycle de vie qui refuse sc stop) | Partiel : auto-défense complète ; persistance HKLM, réseau et canaris restent à migrer |
+| `CoreGuard.Service` | Program (hôte + CLI), ProtectionWorker (ETW, arrêt VSS, pipe, arrêt authentifié, AMSI), Watchdog, ServiceHost, CanaryGuard, UserProfiles, ScriptScanner | Partiel : persistance HKLM et réseau restent à migrer |
+| `CoreGuard.AmsiProvider` | ComServer (DllGetClassObject, fabrique, IAntimalwareProvider), ScanClient (pipe, contrôle session 0, fail-open) | Complet (x64, non signé) |
 | Tests (7 projets) | MSTest | Complet pour ce qui existe |
 
 ## 3. Découplage Ring 0
@@ -99,7 +100,7 @@ public interface IKernelActionProvider
 
 | # | Scénario | Spécimen | Détecté aujourd'hui ? | Bloqué ? | Ce qui manque |
 |---|---|---|---|---|---|
-| 1 | PowerShell AMSI | ✅ `01` | Partiel (règle ETW Office→shell / règle de contenu si le fichier est scanné) | ❌ | Fournisseur AMSI réel |
+| 1 | PowerShell AMSI | ✅ `01` | ✅ (fournisseur AMSI) | ✅ script bloqué avant exécution | Vérifier avec le fournisseur enregistré (admin) |
 | 2 | Ransomware VSS/Canari | ✅ `02` (corrigé) | ✅ leurres touchés détectés + restaurés ; VSS par ETW | ✅ arrêt du spécimen par audit NTFS (service installé) ; commande VSS arrêtée | Vérifier l'arrêt avec le service installé |
 | 3 | Anti-Kill Watchdog | ✅ `08` | ✅ | ✅ arrêt refusé, relance mutuelle | Vérifier en service installé (essais faits en console) |
 | 4 | BadUSB HID | ✅ `04` | ❌ | ❌ | Moniteur HID + cadence |
@@ -120,7 +121,7 @@ Chaque étape est livrable et testable seule ; l'ordre minimise les dépendances
 2. ✅ **`CoreGuard.Service`** (Worker Service, LocalSystem) + **`CoreGuard.Ipc`** : ETW et arrêt des suppressions de clichés tournent dans le service ; pipe local avec ACL (réseau refusé, utilisateurs interactifs en lecture/écriture), canal v1 en lecture seule (état + alertes, aucune commande), client qui rejette tout serveur hors session 0 (anti-usurpation) ; repli automatique sur l'ETW local. Installation : `scripts/install-service.ps1`. *Fait le 25/11/2026 ; reste à migrer persistance HKLM, réseau et canaris côté service.*
 3. ✅ **Auto-défense** : watchdog mutuel, DACL durcie, `sc stop` refusé, arrêt par mot de passe (défi-réponse HMAC depuis l'UI ou `CoreGuard.Service.exe --stop`), signal HMAC au watchdog ; mot de passe défini à l'installation (`--set-password`, administrateur). Spécimen `demo/08-anti-kill`. *Fait le 26/11/2026.*
 4. ✅ **Réponse ransomware** : canaris gérés par le service (cachés, noms de la spec, tous les profils), attribution par audit NTFS et arrêt du PID exact, restauration robuste, `FileSystemWatcher.Error` géré, spécimen 02 corrigé (vise les leurres, liste blanche stricte, se relance dans un processus dédié). *Fait le 26/11/2026.*
-5. **Fournisseur AMSI** (DLL COM native ou `DllExport`, enregistrée sous `HKLM\SOFTWARE\Microsoft\AMSI\Providers`) qui transmet les scripts au service via pipe ; règles + LLM pour l'explication. *Scénario 1.*
+5. ✅ **Fournisseur AMSI** : DLL NativeAOT `CoreGuard.AmsiProvider` (COM in-process, enregistrée sous `HKLM\SOFTWARE\Microsoft\AMSI\Providers` par `install-service.ps1`), analyse côté service (`ScriptScanner` : règles + désobfuscation Base64), alerte dans l'UI. *Fait le 26/11/2026.*
 6. **Moniteur BadUSB** : `ManagementEventWatcher` sur `Win32_DeviceChangeEvent` + hook clavier bas niveau pendant N s après branchement (cadence > 500 car/s, variance ≈ 0) → blocage des entrées (`BlockInput`) et alerte. *Scénario 4.*
 7. **Scanner mémoire** : `VirtualQueryEx` sur les processus utilisateur, régions `MEM_PRIVATE` + `PAGE_EXECUTE_READWRITE` (ou exécutables non adossées à une image), en-tête MZ en mémoire → kill + alerte ; spécimen bénin qui alloue une région RWX dans **son propre** processus. *Scénario 5.*
 8. **Anti-infostealer** : ACL sur les fichiers des profils Chrome/Edge/Brave (accès réservé au navigateur via le service), SACL d'audit + lecture des événements 4663, ou ETW `Microsoft-Windows-Kernel-File` ; alerte sur tout processus non-navigateur. *Scénario 7.*

@@ -8,6 +8,7 @@
   - crée le service "CoreGuardService" (LocalSystem, démarrage automatique, redémarrage en cas d'arrêt anormal) ;
   - demande le mot de passe de protection à la première installation (exigé ensuite pour tout arrêt) ;
   - active l'audit « Système de fichiers » (succès), utilisé pour identifier le processus qui touche un leurre ;
+  - compile et enregistre le fournisseur AMSI (analyse des scripts avant exécution ; outils C++ de Visual Studio requis) ;
   - le démarre.
   À lancer depuis une console PowerShell **administrateur**, à la racine du dépôt :
       ./scripts/install-service.ps1
@@ -70,6 +71,36 @@ if (-not (Test-Path $secret)) {
 # leurres) génèrent des événements. GUID de sous-catégorie : indépendant de la langue de Windows.
 auditpol.exe /set /subcategory:"{0CCE921D-69AE-11D9-BED3-505054503030}" /success:enable | Out-Null
 if ($LASTEXITCODE -ne 0) { Write-Warning "Activation de l'audit impossible : les ransomwares seront détectés et les leurres restaurés, sans arrêt automatique." }
+
+# Fournisseur AMSI : DLL native chargée par amsi.dll dans PowerShell, wscript/cscript, Office… Elle transmet
+# chaque script au service avant son exécution ; le service répond « bloquer » ou non.
+$clsid = '{6B3C2F1E-8A4D-4C7B-9E21-C0A5E9F4D317}'
+$amsiDir = Join-Path (Split-Path -Parent $InstallDir) 'Amsi'
+$amsiDll = Join-Path $amsiDir 'CoreGuard.AmsiProvider.dll'
+try {
+    & (Join-Path $repoRoot 'scripts\build-amsi-provider.ps1')
+    New-Item -ItemType Directory -Force -Path $amsiDir | Out-Null
+    if (Test-Path $amsiDll) {
+        # La DLL est chargée par les PowerShell ouverts : on la renomme (autorisé) avant de copier la nouvelle
+        Rename-Item -Path $amsiDll -NewName ("CoreGuard.AmsiProvider.{0}.old" -f [DateTime]::Now.Ticks)
+    }
+    Copy-Item (Join-Path $repoRoot 'CoreGuard.AmsiProvider\bin\publish\CoreGuard.AmsiProvider.dll') $amsiDll
+    Get-ChildItem $amsiDir -Filter '*.old' -ErrorAction SilentlyContinue | Remove-Item -ErrorAction SilentlyContinue
+
+    $clsidKey = "HKLM:\SOFTWARE\Classes\CLSID\$clsid"
+    New-Item -Path $clsidKey -Force | Out-Null
+    Set-Item -Path $clsidKey -Value 'CoreGuard AMSI Provider'
+    New-Item -Path "$clsidKey\InprocServer32" -Force | Out-Null
+    Set-Item -Path "$clsidKey\InprocServer32" -Value $amsiDll
+    New-ItemProperty -Path "$clsidKey\InprocServer32" -Name 'ThreadingModel' -Value 'Both' -PropertyType String -Force | Out-Null
+    New-Item -Path "HKLM:\SOFTWARE\Microsoft\AMSI\Providers\$clsid" -Force | Out-Null
+    Set-Item -Path "HKLM:\SOFTWARE\Microsoft\AMSI\Providers\$clsid" -Value 'CoreGuard'
+    Write-Host "Fournisseur AMSI enregistré : $amsiDll"
+    Write-Host "  Les nouvelles fenêtres PowerShell le chargeront. Remarque : selon la configuration de Windows, un"
+    Write-Host "  fournisseur AMSI non signé (Authenticode) peut être ignoré ; l'état est visible dans Réglages."
+} catch {
+    Write-Warning "Fournisseur AMSI non installé : $($_.Exception.Message). Le reste de CoreGuard fonctionne sans lui."
+}
 
 # Redémarrage automatique après un arrêt anormal : 5 s, 5 s, puis 30 s ; compteur remis à zéro après 1 jour
 sc.exe failure $serviceName reset= 86400 actions= restart/5000/restart/5000/restart/30000 | Out-Null

@@ -115,7 +115,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IPageViewModel
         ServiceStatus = s is null
             ? "Service CoreGuard non connecté : protection système inactive (installez-le avec scripts/install-service.ps1)."
             : $"Service connecté (PID {s.ProcessId}). Auto-défense : {selfDefense}. "
-              + (s.StopPasswordConfigured ? "Mot de passe de protection configuré." : "Aucun mot de passe : arrêt impossible depuis l'interface.");
+              + (s.StopPasswordConfigured ? "Mot de passe de protection configuré." : "Aucun mot de passe : arrêt impossible depuis l'interface.")
+              + (s.Modules.FirstOrDefault(m => m.Name == CoreGuard.Ipc.ServiceModules.Amsi) is { } amsi ? $" AMSI : {amsi.Text}." : "");
         StopProtectionCommand.NotifyCanExecuteChanged();
     }
 
