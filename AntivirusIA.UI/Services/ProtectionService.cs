@@ -81,6 +81,16 @@ public sealed class ProtectionService : IDisposable
 
     public int ActiveCount => Modules.Count(m => m.State == ModuleState.Active);
 
+    /// <summary>Applications utilisant actuellement la caméra ou le micro (hors liste blanche).</summary>
+    public IReadOnlyList<CoreGuard.Privacy.SensorUsage> ActiveSensorUsages()
+    {
+        try { return _sensors?.Snapshot() ?? []; }
+        catch (Exception ex) when (ex is not OutOfMemoryException) { return []; }
+    }
+
+    /// <summary>Levé (thread quelconque) quand une application commence ou cesse d'utiliser un capteur.</summary>
+    public event Action? SensorsChanged;
+
     /// <summary>Applique les réglages courants (démarre/arrête les modules). Exécuté hors thread UI.</summary>
     public Task ApplyAsync() => Task.Run(() =>
     {
@@ -277,6 +287,7 @@ public sealed class ProtectionService : IDisposable
             var monitor = new SensorMonitor();
             monitor.UsageChanged += (_, u) =>
             {
+                SensorsChanged?.Invoke();
                 if (u.InUse)
                     _alerts.Publish(AlertSeverity.Warning, "Vie privée", $"{u.Sensor} utilisé", Path.GetFileName(u.Process));
             };

@@ -111,8 +111,8 @@
   <p class="lead">Une suite de sécurité 100 % locale pour Windows 10/11 : aucun cloud, aucune donnée envoyée à l'extérieur. Chaque partie de ce document se lit à deux niveaux : <strong>en français facile</strong>, puis <strong>en termes informatiques</strong>.</p>
   <div class="stats" role="list">
     <div class="stat" role="listitem"><b>30</b><span>projets .NET dans la solution</span></div>
-    <div class="stat" role="listitem"><b>341</b><span>tests automatisés, tous verts</span></div>
-    <div class="stat" role="listitem"><b>8 / 12</b><span>étapes du plan d'alignement terminées</span></div>
+    <div class="stat" role="listitem"><b>345</b><span>tests automatisés, tous verts</span></div>
+    <div class="stat" role="listitem"><b>9 / 12</b><span>étapes du plan d'alignement terminées</span></div>
     <div class="stat" role="listitem"><b>0</b><span>dépendance au cloud ou au driver noyau</span></div>
   </div>
 </header>
@@ -252,7 +252,7 @@
     <tr><td><strong>Scan mémoire</strong></td><td>Certains virus n'écrivent aucun fichier : ils se cachent directement dans la mémoire d'un programme. CoreGuard inspecte la mémoire toutes les 30 s et arrête le programme qui cache un exécutable.</td><td>Service : <code>VirtualQueryEx</code> + <code>ReadProcessMemory</code> sur les régions privées exécutables ; image PE (MZ + « PE\0\0 ») hors de toute image chargée → <code>TerminateProcess</code>. Régions RWX seules : comptées, sans alerte (trop fréquentes chez les programmes légitimes).</td><td><span class="pill ok">Actif</span></td></tr>
     <tr><td><strong>Anti-infostealer</strong></td><td>Les « voleurs d'identifiants » copient les mots de passe et cookies enregistrés par le navigateur. Seul un vrai navigateur a le droit de lire ces fichiers : tout autre programme qui les lit est arrêté. Un faux profil de navigateur sert d'appât.</td><td>SACL d'audit en lecture (ReadData) sur <code>Login Data</code>, <code>Local State</code>, <code>Cookies</code>, <code>Web Data</code>, <code>logins.json</code>, <code>key4.db</code> ; 4663 → décision : nom d'exécutable + signature Authenticode de l'éditeur attendu ; leurre Chromium. Pas d'ACL préventive possible (même compte).</td><td><span class="pill ok">Actif</span></td></tr>
     <tr><td><strong>Presse-papiers</strong></td><td>Empêche un virus de remplacer une adresse Bitcoin copiée par la sienne, et efface un mot de passe copié au bout de 30 s.</td><td><code>AddClipboardFormatListener</code>, détection d'adresses crypto, restauration ; vidage des secrets (mots de passe, clés <code>sk-</code>, cartes).</td><td><span class="pill ok">Actif</span></td></tr>
-    <tr><td><strong>Caméra / micro</strong></td><td>Prévient quand une application utilise la webcam ou le micro.</td><td>Scrutation du registre <code>CapabilityAccessManager\ConsentStore</code>.</td><td><span class="pill warn">Sans bouton de coupure</span></td></tr>
+    <tr><td><strong>Caméra / micro</strong></td><td>Prévient quand une application utilise la webcam ou le micro.</td><td>Scrutation du registre <code>CapabilityAccessManager\ConsentStore</code>.</td><td><span class="pill ok">Actif + bouton Couper</span></td></tr>
     <tr><td><strong>Persistance</strong></td><td>Signale un programme qui s'inscrit pour se relancer à chaque démarrage.</td><td>Clés <code>Run</code> / <code>RunOnce</code>, tâches planifiées, événement 7045 (services).</td><td><span class="pill warn">Alerte sans pop-up</span></td></tr>
     <tr><td><strong>Téléchargements</strong></td><td>Analyse automatiquement chaque fichier téléchargé.</td><td><code>FileSystemWatcher</code> sur Téléchargements + pipeline d'analyse.</td><td><span class="pill warn">Zone.Identifier non lu</span></td></tr>
     <tr><td><strong>Anti-phishing</strong></td><td>Compare ce que la page <em>affiche</em> (« Banque X ») à son adresse réelle, et repère les faux domaines qui ressemblent aux vrais.</td><td>Extension MV3 → Native Messaging → OCR <code>Windows.Media.Ocr</code>, QR <code>ZXing</code>, distance de Levenshtein, homographes Unicode.</td><td><span class="pill warn">Hôte à enregistrer à la main</span></td></tr>
@@ -344,7 +344,7 @@ services.AddSingleton&lt;IDetectionEngine, EmberOnnxEngine&gt;();   // une ligne
     <tr><td>7</td><td>Vol de mots de passe du navigateur</td><td><code>07-vol-identifiants</code></td><td>Le faux voleur lit le profil leurre : il est arrêté dès la lecture ; alerte « Vol d'identifiants bloqué ».</td><td><span class="pill ok">Prêt</span></td></tr>
     <tr><td>8</td><td>Crypto-clipper</td><td><code>05-crypto-clipper</code></td><td>L'adresse Bitcoin remplacée est remise d'origine instantanément.</td><td><span class="pill ok">Prêt</span></td></tr>
     <tr><td>9</td><td>Persistance au démarrage</td><td><code>03-persistance</code></td><td>Alerte « Nouvelle persistance » en quelques secondes.</td><td><span class="pill warn">Alerte (pop-up prévue)</span></td></tr>
-    <tr><td>10</td><td>Accès à la caméra</td><td>—</td><td>Alerte « Webcam utilisée » ; bouton de coupure prévu.</td><td><span class="pill warn">Détection seule</span></td></tr>
+    <tr><td>10</td><td>Accès à la caméra</td><td>— (appli Caméra de Windows)</td><td>Alerte « webcam utilisée » ; un clic sur « Couper » ferme l'application.</td><td><span class="pill ok">Prêt</span></td></tr>
   </tbody>
 </table>
 <h3>Déroulé conseillé pour la soutenance</h3>
@@ -360,7 +360,6 @@ services.AddSingleton&lt;IDetectionEngine, EmberOnnxEngine&gt;();   // une ligne
 <table>
   <thead><tr><th>Étape</th><th>Contenu</th></tr></thead>
   <tbody>
-    <tr><td>9</td><td>Privacy Guard actif : bouton « Couper » la caméra ou le micro.</td></tr>
     <tr><td>10</td><td>Persistance interactive : pop-up Autoriser / Bloquer, retrait de l'entrée, dossier Startup.</td></tr>
     <tr><td>11</td><td>Extension : script d'enregistrement de l'hôte, coffre-fort branché à l'auto-remplissage, verdicts affichés dans l'UI.</td></tr>
     <tr><td>12</td><td>IA niveau 1 (EMBER / ONNX), WFP natif, Mode Paranoïa réel, <code>Zone.Identifier</code>.</td></tr>
@@ -394,7 +393,7 @@ services.AddSingleton&lt;IDetectionEngine, EmberOnnxEngine&gt;();   // une ligne
   </tbody>
 </table>
 
-<footer>CoreGuard — document généré à partir du dépôt (branche <code>main</code>, après l'étape 8). Détails techniques et état exact : <code>docs/AUDIT.md</code>, <code>docs/MODULES.md</code>, <code>demo/README.md</code>.</footer>
+<footer>CoreGuard — document généré à partir du dépôt (branche <code>main</code>, après l'étape 9). Détails techniques et état exact : <code>docs/AUDIT.md</code>, <code>docs/MODULES.md</code>, <code>demo/README.md</code>.</footer>
 </main>
 </div>
 </body>

@@ -3,6 +3,7 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>latest</LangVersion>
     <!-- NativeWindow (fenêtre message-only du presse-papiers) -->
     <UseWindowsForms>true</UseWindowsForms>

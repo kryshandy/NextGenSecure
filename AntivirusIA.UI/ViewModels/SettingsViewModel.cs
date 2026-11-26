@@ -45,6 +45,19 @@ public sealed partial class SettingsViewModel : ObservableObject, IPageViewModel
     [ObservableProperty] private bool _serviceConnected;
     [ObservableProperty] private string _stopMessage = string.Empty;
 
+    // Paramètres Windows de confidentialité (appliqués immédiatement, pas par « Enregistrer »)
+    public bool DenyDesktopCamera
+    {
+        get => !CoreGuard.Privacy.SensorControl.IsDesktopAppsAccessAllowed("webcam");
+        set { CoreGuard.Privacy.SensorControl.SetDesktopAppsAccess("webcam", !value); OnPropertyChanged(); }
+    }
+
+    public bool DenyDesktopMicrophone
+    {
+        get => !CoreGuard.Privacy.SensorControl.IsDesktopAppsAccessAllowed("microphone");
+        set { CoreGuard.Privacy.SensorControl.SetDesktopAppsAccess("microphone", !value); OnPropertyChanged(); }
+    }
+
     // Largeurs relatives des trois bandes (Sain / Suspect / Malveillant) de l'aperçu des seuils
     [ObservableProperty] private GridLength _bandHealthy = new(30, GridUnitType.Star);
     [ObservableProperty] private GridLength _bandSuspect = new(40, GridUnitType.Star);

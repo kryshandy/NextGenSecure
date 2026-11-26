@@ -88,7 +88,8 @@ CoreGuard.sln
 
 **Modules utilisateur**
 - ✅ **Presse-papiers intelligent** (anti-crypto-clipper, vidage des secrets après 30 s)
-- 🟡 **Privacy Guard** (détection caméra/micro ; bouton de coupure prévu), **Vault** (crypto complète, non branché à l'UI), **Mode Paranoïa** (interrupteur sans action réelle)
+- ✅ **Privacy Guard** : alerte quand une application utilise la caméra ou le micro, bouton **Couper** (arrêt de l'application, retrait de l'autorisation) et interdiction aux applications de bureau en un clic
+- 🟡 **Vault** (crypto complète, non branché à l'UI), **Mode Paranoïa** (interrupteur sans action réelle)
 - 🟡 **Anti-phishing visuel** par OCR (`Windows.Media.Ocr`) + QR (quishing) dans l'extension ; hôte Native Messaging à enregistrer à la main (`CoreGuard.Extension/INSTALL.txt`)
 
 ---
@@ -141,7 +142,7 @@ dotnet run --project AntivirusIA.UI
 dotnet test AntivirusIA.slnx
 ```
 
-341 tests MSTest (moteurs, quarantaine, règles, comportement, réseau, réponse, IPC, service, fournisseur AMSI natif, vie privée, coffre, extension). Procédure de test manuelle : [`docs/TESTING.md`](docs/TESTING.md).
+345 tests MSTest (moteurs, quarantaine, règles, comportement, réseau, réponse, IPC, service, fournisseur AMSI natif, vie privée, coffre, extension). Procédure de test manuelle : [`docs/TESTING.md`](docs/TESTING.md).
 
 ---
 

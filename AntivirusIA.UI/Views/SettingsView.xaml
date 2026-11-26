@@ -172,6 +172,12 @@
                             <ctl:SettingRow Title="Webcam et microphone" Description="Alerte quand une application utilise un capteur.">
                                 <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding Settings.SensorsEnabled}" AutomationProperties.Name="Webcam et microphone"/>
                             </ctl:SettingRow>
+                            <ctl:SettingRow Title="Interdire la caméra aux applications de bureau" Description="Paramètre de confidentialité Windows, appliqué immédiatement. Les applications du Store se gèrent une à une (bouton Couper du tableau de bord).">
+                                <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding DenyDesktopCamera}" AutomationProperties.Name="Interdire la caméra aux applications de bureau"/>
+                            </ctl:SettingRow>
+                            <ctl:SettingRow Title="Interdire le micro aux applications de bureau" Description="Paramètre de confidentialité Windows, appliqué immédiatement.">
+                                <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding DenyDesktopMicrophone}" AutomationProperties.Name="Interdire le micro aux applications de bureau"/>
+                            </ctl:SettingRow>
                             <ctl:SettingRow Title="Clavier (BadUSB)" Description="Bloque pendant 10 s une frappe automatique (débit surhumain ou cadence de machine). Peut gêner la saisie automatique d'un gestionnaire de mots de passe.">
                                 <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding Settings.BadUsbEnabled}" AutomationProperties.Name="Clavier BadUSB"/>
                             </ctl:SettingRow>

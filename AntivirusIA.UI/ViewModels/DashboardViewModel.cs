@@ -26,9 +26,14 @@ public sealed partial class DashboardViewModel : ObservableObject, IPageViewMode
     private readonly IDialogService _dialogs;
     private readonly DispatcherTimer _refreshTimer;
 
+    private readonly AntivirusIA.Core.Interfaces.IKernelActionProvider _actions;
+
     public DashboardViewModel(ActivityStats stats, AlertHub hub, ProtectionService protection,
-        AppSettings settings, SettingsStore store, ScanViewModel scan, IDialogService dialogs)
+        AppSettings settings, SettingsStore store, ScanViewModel scan, IDialogService dialogs,
+        AntivirusIA.Core.Interfaces.IKernelActionProvider actions)
     {
+        _actions = actions;
+        protection.SensorsChanged += () => UiThread.Post(RefreshSensors);
         Stats = stats;
         _hub = hub;
         _protection = protection;
@@ -77,6 +82,32 @@ public sealed partial class DashboardViewModel : ObservableObject, IPageViewMode
     public ObservableCollection<AlertItem> Alerts => _hub.Alerts;
     public ICollectionView AlertsView { get; }
     public ObservableCollection<ModuleCardViewModel> Modules { get; }
+
+    // ---------- Caméra / micro en cours d'utilisation (Privacy Guard) ----------
+
+    /// <summary>Applications qui utilisent la caméra ou le micro en ce moment.</summary>
+    public ObservableCollection<SensorUsageRow> ActiveSensors { get; } = [];
+
+    [ObservableProperty] private bool _hasActiveSensors;
+
+    private void RefreshSensors()
+    {
+        ActiveSensors.Clear();
+        foreach (var u in _protection.ActiveSensorUsages()) ActiveSensors.Add(new SensorUsageRow(u));
+        HasActiveSensors = ActiveSensors.Count > 0;
+    }
+
+    /// <summary>Coupe le capteur : arrêt de l'application (+ retrait de l'autorisation pour une app du Store).</summary>
+    [RelayCommand]
+    private async Task CutSensorAsync(SensorUsageRow? row)
+    {
+        if (row is null) return;
+        var result = await Task.Run(() => CoreGuard.Privacy.SensorControl.Cut(row.Usage,
+            pid => _actions.TerminateProcessAsync(pid, $"coupure {row.SensorLabel} demandée par l'utilisateur").GetAwaiter().GetResult().Success));
+        _hub.Publish(result.ProcessesStopped > 0 || result.AccessDenied ? AlertSeverity.Info : AlertSeverity.Warning,
+            "Vie privée", $"{row.SensorLabel} coupé(e) : {row.AppName}", result.Message);
+        RefreshSensors();
+    }
 
     [ObservableProperty] private ProtectionLevel _level = ProtectionLevel.Protected;
     [ObservableProperty] private string _statusTitle = "Votre appareil est protégé";

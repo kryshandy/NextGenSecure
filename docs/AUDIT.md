@@ -1,13 +1,13 @@
 # Audit CoreGuard — alignement sur l'architecture consolidée
 
-*Audit du 24/11/2026 (commit `c0e9def`), mis à jour le 26/11/2026 après les étapes 1 à 8 du plan. Toutes les affirmations ci-dessous viennent d'une lecture du code et d'une exécution de `dotnet build` / `dotnet test`.*
+*Audit du 24/11/2026 (commit `c0e9def`), mis à jour le 27/11/2026 après les étapes 1 à 9 du plan. Toutes les affirmations ci-dessous viennent d'une lecture du code et d'une exécution de `dotnet build` / `dotnet test`.*
 
 ## Synthèse
 
 | Point | Constat |
 |---|---|
 | Compilation | `dotnet build AntivirusIA.slnx` : **0 erreur, 0 avertissement** (18 projets). |
-| Tests | `dotnet test` : **341 tests verts** (84 socle + 57 Behavior + 38 Extension + 33 Service + 24 Privacy + 23 Ipc + 21 RealTime + 13 Memory + 11 Vault + 10 Network + 10 Response + 10 Devices + 7 AmsiProvider sur la DLL native réelle). |
+| Tests | `dotnet test` : **345 tests verts** (84 socle + 57 Behavior + 38 Extension + 33 Service + 28 Privacy + 23 Ipc + 21 RealTime + 13 Memory + 11 Vault + 10 Network + 10 Response + 10 Devices + 7 AmsiProvider sur la DLL native réelle). |
 | Ring 0 | Aucun code ne référence de driver : rien ne bloque sans `CoreGuard.Driver`. L'abstraction **`IKernelActionProvider`** (Core) est en place, avec **`UserModeActionProvider`** (CoreGuard.Response) câblé par défaut. |
 | Composants | Les 3 composants existent. **`CoreGuard.Service`** (Worker Service LocalSystem, session 0) héberge la télémétrie ETW et la réponse associée ; l'UI s'y connecte par named pipe et garde les modules liés à la session (presse-papiers, caméra/micro, canaris, téléchargements, persistance HKCU). Sans service, l'UI reprend ETW elle-même. |
 | Framework | Le code cible **.NET 10** (LTS), pas .NET 8/9. Aucune raison de redescendre : .NET 10 est la LTS actuelle et toutes les dépendances le supportent. |
@@ -37,7 +37,7 @@ Légende des états : **Complet** (fait ce que la spec demande) · **Partiel** (
 | 13 | Anti-infostealer navigateur | `CoreGuard.Service/CredentialGuard.cs`, `CredentialTargets.cs`, `CredentialAccessPolicy.cs` | **Complet (user-mode)** | Audit NTFS **en lecture** (SACL ReadData + événement 4663 = PID exact) sur `Login Data`, `Local State`, `Cookies`, `Web Data` (Chrome, Edge, Brave) et `logins.json`, `key4.db`, `cookies.sqlite` (Firefox) de chaque profil, réappliqué toutes les 2 min. Lecteur autorisé : navigateur reconnu par nom **et** signature Authenticode de l'éditeur attendu, Defender et l'indexation depuis les dossiers système ; tout autre lecteur (programme inconnu, PowerShell, `cmd /c copy`…) est **arrêté**. **Profil leurre Chromium** (créé seulement si Chromium n'est pas installé) : tout lecteur est arrêté. Pas d'ACL préventive : navigateur et voleur tournent sous le même compte, une ACL ne peut pas les distinguer ; la lecture a lieu avant l'arrêt (conseil de changer les mots de passe). Essai réel en console : 28 fichiers inventoriés, leurre créé et retiré ; arrêt à vérifier avec le service installé. |
 | 14 | Anti-phishing visuel | `CoreGuard.Extension/*` | **Partiel** | Levenshtein, homographes, OCR Windows, QR (ZXing) : OK et testés. L'hôte n'est **pas enregistré** automatiquement (manifeste + clé de registre à créer, voir `INSTALL.txt`) et les verdicts ne remontent pas dans l'UI. |
 | 15 | Presse-papiers intelligent | `CoreGuard.Privacy/ClipboardGuardian.cs` | **Complet** | `AddClipboardFormatListener`, restauration anti-clipper, vidage des secrets à 30 s. |
-| 16 | Privacy Guard | `CoreGuard.Privacy/SensorMonitor.cs` | **Partiel** | Lecture du `ConsentStore` par scrutation : OK. **Pas de bouton de coupure** (ni kill du processus, ni désactivation du périphérique). |
+| 16 | Privacy Guard | `CoreGuard.Privacy/SensorMonitor.cs`, `SensorControl.cs`, tableau de bord | **Complet** | Détection par le `ConsentStore` + carte « Caméra / micro en cours d'utilisation » avec bouton **Couper** : arrêt des processus de l'application (retrouvés par chemin exact d'exécutable) et, pour une app du Store, refus d'accès par application. Pour les applications de bureau, Windows n'a qu'un interrupteur global : Réglages > « Interdire la caméra / le micro aux applications de bureau ». |
 | 17 | Mode Paranoïa | `CoreGuard.Privacy/ParanoiaMode.cs` | **Squelette** | Interrupteur et politique uniquement : **aucune action réelle** (ni USB, ni pare-feu liste blanche, ni blocage d'exécution). |
 | 18 | Gardien de persistance | `CoreGuard.Behavior/PersistenceWatcher.cs` | **Partiel** | Scrutation Run/RunOnce + tâches planifiées + événement 7045 : OK. Dossier `Startup` non surveillé, **pas de pop-up Autoriser/Bloquer**, pas de retrait. |
 | 19 | Smart Download Guard | `AntivirusIA.UI/Services/ProtectionService.cs` | **Partiel** | Scan automatique des nouveaux fichiers de Téléchargements (non récursif) avec signature Authenticode et règles. **`Zone.Identifier` non lu**, pas de score Vert/Orange/Rouge dédié, pas de score EMBER (cf. #2). |
@@ -111,7 +111,7 @@ public interface IKernelActionProvider
 | 7 | Anti-Infostealer | ✅ `07` (corrigé) | ✅ lecture du leurre / des bases par un non-navigateur | ✅ voleur arrêté (service installé + audit) | Vérifier avec le service installé |
 | 8 | Crypto-Clipper | ✅ `05` | ✅ | ✅ restauration | — (démontrable) |
 | 9 | Persistance | ✅ `03` | ✅ (≤ 5 s) | ❌ | Pop-up Autoriser/Bloquer + retrait |
-| 10 | Privacy Guard caméra | ❌ | ✅ si une appli ouvre la caméra | ❌ | Bouton de coupure |
+| 10 | Privacy Guard caméra | — (ouvrir l'appli Caméra ou une visio) | ✅ | ✅ bouton Couper | Démontrable sans spécimen |
 
 **Démontrables tels quels : 8 (clipper), 9 (détection), 6 (avec installation manuelle de l'hôte), 10 (détection).**
 
@@ -127,7 +127,7 @@ Chaque étape est livrable et testable seule ; l'ordre minimise les dépendances
 6. ✅ **Moniteur BadUSB** : `CoreGuard.Devices` (analyse de cadence + blocage par le hook clavier, détection des nouveaux claviers), module « Clavier (BadUSB) » dans l'UI. *Fait le 26/11/2026.*
 7. ✅ **Scanner mémoire** : `CoreGuard.Memory` (classement des régions, scan des processus) + `MemoryGuard` dans le service (scan toutes les 30 s, arrêt sur image PE en mémoire privée), spécimen `demo/09-injection-memoire`. *Fait le 26/11/2026.*
 8. ✅ **Anti-infostealer** : audit en lecture des fichiers d'identifiants de tous les navigateurs et profils, politique « navigateur signé uniquement », profil leurre Chromium, arrêt du voleur ; spécimen 07 corrigé (ne lit que le leurre, après vérification du marqueur). *Fait le 26/11/2026.*
-9. **Privacy Guard actif** : bouton « Couper » (kill du processus ou désactivation du périphérique via SetupAPI) + badge. Spécimen : ouverture de la caméra par un petit outil de test. *Scénario 10.*
+9. ✅ **Privacy Guard actif** : bouton « Couper » (arrêt de l'application + refus d'accès quand Windows le permet), interdiction globale caméra/micro aux applications de bureau dans Réglages. *Fait le 27/11/2026.*
 10. **Persistance interactive** : pop-up Autoriser/Bloquer, retrait de la valeur Run / de la tâche, dossier Startup, explication LLM en une ligne. *Scénario 9.*
 11. **Extension** : script d'enregistrement de l'hôte Native Messaging, branchement du Vault (`ICredentialProvider`), remontée des verdicts dans l'UI. *Scénario 6.*
 12. **IA niveau 1** : extraction de features EMBER (sous-ensemble), modèle ONNX entraîné hors ligne, `OnnxRuntime`, budget < 50 ms ; **WFP natif** (`FwpmFilterAdd0` par AppId) ; **Mode Paranoïa réel** ; **Zone.Identifier** dans le Download Guard.
