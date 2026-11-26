@@ -23,4 +23,4 @@ Chaque module est un projet isolé qui ne référence que `AntivirusIA.Core`. Le
 | `CoreGuard.AmsiProvider` | Fournisseur AMSI natif (NativeAOT, COM) : transmet chaque script au service avant exécution, bloque sur son verdict | Complet (x64, non signé) |
 | `CoreGuard.Devices` | Moniteur BadUSB : cadence de frappe (hook clavier), blocage de l'injection, détection des nouveaux claviers | Complet |
 | `CoreGuard.Memory` | Scan mémoire « fileless » : régions privées exécutables, détection d'images PE injectées | Complet |
-| Tests (`*.Tests`) | 379 tests MSTest | Complet pour l'existant |
+| Tests (`*.Tests`) | 380 tests MSTest | Complet pour l'existant |

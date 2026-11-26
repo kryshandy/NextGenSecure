@@ -4,7 +4,8 @@
         WindowStyle="None" ResizeMode="NoResize" Topmost="True" ShowInTaskbar="False"
         Background="#F00B0E13" FontFamily="{StaticResource UiFont}" UseLayoutRounding="True"
         Title="CoreGuard - PC verrouillé">
-    <!-- Écran de verrouillage d'urgence : couvre tous les moniteurs, reste au premier plan, refuse de se fermer -->
+    <!-- Écran de verrouillage d'urgence : couvre tous les moniteurs, reste au premier plan, refuse de se fermer.
+         La saisie du mot de passe n'apparaît qu'avec Ctrl+R (l'écran reste neutre pour qui ne connaît pas le geste). -->
     <Grid>
         <Border Width="440" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#FF171B21"
                 CornerRadius="16" Padding="36" BorderBrush="#FF2A313B" BorderThickness="1">
@@ -13,15 +14,23 @@
                 <TextBlock Text="PC verrouillé par CoreGuard" Foreground="#FFE8EBF0" FontSize="24" FontWeight="SemiBold"
                            HorizontalAlignment="Center" Margin="0,18,0,6"/>
                 <TextBlock x:Name="ReasonText" Foreground="#FF9AA3B2" FontSize="13" TextWrapping="Wrap" TextAlignment="Center"/>
-                <TextBlock Foreground="#FF9AA3B2" FontSize="12" TextWrapping="Wrap" TextAlignment="Center" Margin="0,10,0,22"
-                           Text="Clés USB bloquées, nouveaux périphériques refusés. Saisissez le mot de passe de protection CoreGuard pour déverrouiller."/>
-                <PasswordBox x:Name="Password" FontSize="15" Padding="12,9" Background="#FF0F1216" Foreground="#FFE8EBF0"
-                             CaretBrush="#FFE8EBF0" BorderBrush="#FF3A66E8" BorderThickness="2"
-                             AutomationProperties.Name="Mot de passe de protection" KeyDown="OnPasswordKey"/>
-                <Button x:Name="UnlockButton" Content="Déverrouiller" Margin="0,16,0,0" Padding="0,10" FontSize="14" FontWeight="SemiBold"
-                        Foreground="White" Background="#FF3A66E8" BorderThickness="0" Cursor="Hand" Click="OnUnlock"/>
-                <TextBlock x:Name="ErrorText" Foreground="#FFFF7A8A" FontSize="12" TextWrapping="Wrap" TextAlignment="Center"
-                           Margin="0,12,0,0" Visibility="Collapsed"/>
+
+                <!-- Indication discrète tant que la saisie est masquée -->
+                <TextBlock x:Name="HintText" Foreground="#FF5A6270" FontSize="12" TextAlignment="Center" Margin="0,22,0,0"
+                           Text="Ctrl+R pour déverrouiller"/>
+
+                <!-- Saisie du mot de passe : affichée par Ctrl+R, masquée par Échap ou après 60 s d'inactivité -->
+                <StackPanel x:Name="UnlockPanel" Visibility="Collapsed">
+                    <TextBlock Foreground="#FF9AA3B2" FontSize="12" TextWrapping="Wrap" TextAlignment="Center" Margin="0,10,0,22"
+                               Text="Clés USB bloquées, nouveaux périphériques refusés. Saisissez le mot de passe de protection CoreGuard pour déverrouiller."/>
+                    <PasswordBox x:Name="Password" FontSize="15" Padding="12,9" Background="#FF0F1216" Foreground="#FFE8EBF0"
+                                 CaretBrush="#FFE8EBF0" BorderBrush="#FF3A66E8" BorderThickness="2"
+                                 AutomationProperties.Name="Mot de passe de protection" KeyDown="OnPasswordKey"/>
+                    <Button x:Name="UnlockButton" Content="Déverrouiller" Margin="0,16,0,0" Padding="0,10" FontSize="14" FontWeight="SemiBold"
+                            Foreground="White" Background="#FF3A66E8" BorderThickness="0" Cursor="Hand" Click="OnUnlock"/>
+                    <TextBlock x:Name="ErrorText" Foreground="#FFFF7A8A" FontSize="12" TextWrapping="Wrap" TextAlignment="Center"
+                               Margin="0,12,0,0" Visibility="Collapsed"/>
+                </StackPanel>
             </StackPanel>
         </Border>
     </Grid>

@@ -143,6 +143,7 @@ public sealed class InputLockTests
     [DataRow(0x1B, false, true, true)]    // Ctrl+Échap
     [DataRow(0x41, false, false, false)]  // lettre A : saisie du mot de passe
     [DataRow(0x0D, false, false, false)]  // Entrée
+    [DataRow(0x52, false, true, false)]   // Ctrl+R : affiche la saisie du mot de passe
     public void Seuls_les_raccourcis_systeme_sont_bloques_sur_l_ecran_de_verrouillage(int vk, bool alt, bool ctrl, bool blocked)
     {
         Assert.AreEqual(blocked, InputLockHook.ShouldBlock(vk, alt, ctrl, lockWindowForeground: true));
