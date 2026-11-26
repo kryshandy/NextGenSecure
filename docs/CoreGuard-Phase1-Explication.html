@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CoreGuard — Phase 1 expliquée</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --surface: #ffffff; --surface-2: #f0f2f5; --text: #15181d; --muted: #5a6270;
+    --border: #dde1e7; --accent: #2f5bd9; --accent-soft: #e6edff;
+    --ok: #1a7f4b; --ok-soft: #e3f4ea; --warn: #9a5b00; --warn-soft: #fdf0dc; --bad: #b42335; --bad-soft: #fbe5e8;
+    --code: #eef1f6; --shadow: 0 1px 2px rgba(16,24,40,.06), 0 4px 16px rgba(16,24,40,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216; --surface: #171b21; --surface-2: #1e232b; --text: #e8ebf0; --muted: #9aa3b2;
+      --border: #2a313b; --accent: #7c9cff; --accent-soft: #1c2747;
+      --ok: #4cc38a; --ok-soft: #12291e; --warn: #f0b456; --warn-soft: #2d2311; --bad: #ff7a8a; --bad-soft: #321a1f;
+      --code: #222832; --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.65 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; }
+  .layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); max-width: 1240px; margin: 0 auto; }
+  nav.toc { position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 32px 20px; border-right: 1px solid var(--border); }
+  nav.toc .brand { font-weight: 700; font-size: 18px; margin-bottom: 4px; }
+  nav.toc .sub { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+  nav.toc a { display: block; color: var(--muted); text-decoration: none; font-size: 14px; padding: 6px 10px; border-radius: 6px; }
+  nav.toc a:hover { background: var(--surface-2); color: var(--text); }
+  main { padding: 40px 48px 96px; min-width: 0; }
+  header.hero { margin-bottom: 40px; }
+  .eyebrow { text-transform: uppercase; letter-spacing: .08em; font-size: 12px; font-weight: 600; color: var(--accent); }
+  h1 { font-size: 38px; line-height: 1.15; margin: 8px 0 12px; letter-spacing: -.01em; }
+  h2 { font-size: 26px; margin: 64px 0 8px; letter-spacing: -.01em; scroll-margin-top: 24px; }
+  h3 { font-size: 18px; margin: 28px 0 8px; }
+  p.lead { font-size: 18px; color: var(--muted); max-width: 72ch; margin: 0; }
+  p, li { max-width: 78ch; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 28px 0 0; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; box-shadow: var(--shadow); }
+  .stat b { display: block; font-size: 28px; line-height: 1.1; }
+  .stat span { color: var(--muted); font-size: 13px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; box-shadow: var(--shadow); }
+  .card h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; }
+  .easy h4 { color: var(--ok); }
+  .tech h4 { color: var(--accent); }
+  .card p, .card ul { margin: 6px 0; }
+  .card ul { padding-left: 20px; }
+  code { background: var(--code); padding: 1px 6px; border-radius: 4px; font: 13.5px/1.4 Consolas, "Cascadia Mono", monospace; }
+  pre { background: var(--code); padding: 14px 16px; border-radius: 10px; overflow-x: auto; font: 13px/1.5 Consolas, "Cascadia Mono", monospace; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; font-size: 14.5px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--surface-2); font-size: 12.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  tr:last-child td { border-bottom: none; }
+  .pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+  .pill.ok { background: var(--ok-soft); color: var(--ok); }
+  .pill.warn { background: var(--warn-soft); color: var(--warn); }
+  .pill.bad { background: var(--bad-soft); color: var(--bad); }
+  .note { border-left: 4px solid var(--warn); background: var(--warn-soft); padding: 12px 16px; border-radius: 0 10px 10px 0; margin: 16px 0; }
+  .key { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 12px 16px; border-radius: 0 10px 10px 0; margin: 16px 0; }
+  figure { margin: 20px 0; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  figcaption { color: var(--muted); font-size: 13px; margin-top: 8px; }
+  svg { width: 100%; height: auto; display: block; }
+  svg text { font-family: "Segoe UI", system-ui, sans-serif; fill: var(--text); }
+  svg .box { fill: var(--surface-2); stroke: var(--border); stroke-width: 1.5; }
+  svg .box-accent { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
+  svg .box-ok { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.5; }
+  svg .box-bad { fill: var(--bad-soft); stroke: var(--bad); stroke-width: 1.5; }
+  svg .line { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+  svg .small { font-size: 12px; fill: var(--muted); }
+  svg .title { font-size: 14px; font-weight: 600; }
+  .steps { counter-reset: s; list-style: none; padding: 0; }
+  .steps li { counter-increment: s; position: relative; padding: 8px 0 8px 44px; }
+  .steps li::before { content: counter(s); position: absolute; left: 0; top: 6px; width: 30px; height: 30px; border-radius: 50%;
+                      background: var(--accent-soft); color: var(--accent); font-weight: 700; display: grid; place-items: center; font-size: 14px; }
+  footer { margin-top: 64px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--border); padding-top: 16px; }
+  @media (max-width: 980px) {
+    .layout { grid-template-columns: 1fr; }
+    nav.toc { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+    main { padding: 28px 20px 64px; }
+    .two, .stats { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 620px) { .two, .stats { grid-template-columns: 1fr; } h1 { font-size: 30px; } }
+  @media print { nav.toc { display: none; } .layout { grid-template-columns: 1fr; } .card, .stat, table, figure { box-shadow: none; } }
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="toc" aria-label="Sommaire">
+  <div class="brand">CoreGuard</div>
+  <div class="sub">Phase 1 — état au 26/11/2026</div>
+  <a href="#resume">1. En résumé</a>
+  <a href="#architecture">2. Architecture</a>
+  <a href="#analyse">3. Analyse d'un fichier</a>
+  <a href="#temps-reel">4. Protection temps réel</a>
+  <a href="#reponse">5. Réponse et auto-défense</a>
+  <a href="#ia">6. L'intelligence artificielle</a>
+  <a href="#ia-futur">7. Ajouter d'autres IA</a>
+  <a href="#demos">8. Démonstrations</a>
+  <a href="#reste">9. Ce qui reste à faire</a>
+  <a href="#limites">10. Limites assumées</a>
+  <a href="#glossaire">11. Glossaire</a>
+</nav>
+
+<main>
+<header class="hero">
+  <div class="eyebrow">Antivirus nouvelle génération — projet C#</div>
+  <h1>CoreGuard, Phase 1 : ce qui est construit, comment ça marche, et comment le démontrer</h1>
+  <p class="lead">Une suite de sécurité 100 % locale pour Windows 10/11 : aucun cloud, aucune donnée envoyée à l'extérieur. Chaque partie de ce document se lit à deux niveaux : <strong>en français facile</strong>, puis <strong>en termes informatiques</strong>.</p>
+  <div class="stats" role="list">
+    <div class="stat" role="listitem"><b>28</b><span>projets .NET dans la solution</span></div>
+    <div class="stat" role="listitem"><b>316</b><span>tests automatisés, tous verts</span></div>
+    <div class="stat" role="listitem"><b>6 / 12</b><span>étapes du plan d'alignement terminées</span></div>
+    <div class="stat" role="listitem"><b>0</b><span>dépendance au cloud ou au driver noyau</span></div>
+  </div>
+</header>
+
+<!-- 1 -->
+<h2 id="resume">1. En résumé</h2>
+<div class="two">
+  <div class="card easy"><h4>En français facile</h4>
+    <p>CoreGuard est un garde du corps pour l'ordinateur. Il <strong>examine les fichiers</strong> pour repérer ceux qui sont dangereux, <strong>surveille ce qui se passe</strong> en permanence (programmes qui démarrent, scripts, clavier, fichiers importants) et <strong>réagit</strong> : il bloque, isole ou arrête le coupable.</p>
+    <p>Il a aussi une petite IA embarquée, qui <strong>explique</strong> en langage simple pourquoi un fichier est suspect. Mais ce n'est jamais elle qui décide de bloquer : ce sont des règles vérifiables.</p>
+  </div>
+  <div class="card tech"><h4>En termes informatiques</h4>
+    <ul>
+      <li>.NET 10 (LTS), C#, WPF (MVVM, CommunityToolkit), solution modulaire : chaque module ne dépend que de <code>AntivirusIA.Core</code>.</li>
+      <li>Fonctionnement 100 % <strong>user-mode</strong> (Ring 3 + service <code>LocalSystem</code>) : le driver Rust Ring 0 est en pause, rebranchable via l'abstraction <code>IKernelActionProvider</code>.</li>
+      <li>IA locale : LLM <code>Llama 3.2 3B</code> quantifié (GGUF Q4_K_M) via <code>LLamaSharp</code>, cantonné à l'explication.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- 2 -->
+<h2 id="architecture">2. Architecture</h2>
+<p>CoreGuard est fait de trois composants qui se parlent, plus des « briques » spécialisées.</p>
+<figure>
+<svg viewBox="0 0 900 430" role="img" aria-label="Schéma d'architecture de CoreGuard">
+  <!-- Session utilisateur -->
+  <rect x="10" y="10" width="420" height="410" rx="14" class="box" style="fill:none;stroke-dasharray:6 5"/>
+  <text x="26" y="34" class="small">Session de l'utilisateur (ses droits)</text>
+  <rect x="30" y="50" width="380" height="150" rx="12" class="box-accent"/>
+  <text x="48" y="76" class="title">Interface WPF (AntivirusIA.UI)</text>
+  <text x="48" y="98" class="small">Tableau de bord, analyse, quarantaine, historique, réglages</text>
+  <text x="48" y="118" class="small">Moteurs de scan + IA locale (explication)</text>
+  <text x="48" y="138" class="small">Modules de session : presse-papiers, caméra/micro,</text>
+  <text x="48" y="156" class="small">téléchargements, BadUSB (hook clavier), persistance HKCU</text>
+  <text x="48" y="180" class="small">Arrêt protégé par mot de passe (défi HMAC)</text>
+  <rect x="30" y="220" width="185" height="90" rx="12" class="box"/>
+  <text x="44" y="246" class="title">Extension navigateur</text>
+  <text x="44" y="266" class="small">Manifest V3</text>
+  <text x="44" y="284" class="small">capture d'onglet,</text>
+  <text x="44" y="300" class="small">auto-remplissage</text>
+  <rect x="225" y="220" width="185" height="90" rx="12" class="box"/>
+  <text x="239" y="246" class="title">Hôte Native Messaging</text>
+  <text x="239" y="266" class="small">OCR Windows, QR (ZXing),</text>
+  <text x="239" y="284" class="small">Levenshtein / homographes</text>
+  <rect x="30" y="330" width="380" height="72" rx="12" class="box-ok"/>
+  <text x="48" y="356" class="title">Fournisseur AMSI (DLL native NativeAOT)</text>
+  <text x="48" y="378" class="small">Chargé dans PowerShell, wscript, Office : transmet chaque script</text>
+  <!-- Session 0 -->
+  <rect x="470" y="10" width="420" height="410" rx="14" class="box" style="fill:none;stroke-dasharray:6 5"/>
+  <text x="486" y="34" class="small">Session 0 — compte SYSTEM</text>
+  <rect x="490" y="50" width="380" height="250" rx="12" class="box-accent"/>
+  <text x="508" y="76" class="title">Service Windows (CoreGuard.Service)</text>
+  <text x="508" y="100" class="small">• Télémétrie ETW des processus + règles comportementales</text>
+  <text x="508" y="122" class="small">• Canaris anti-ransomware + audit NTFS (PID exact)</text>
+  <text x="508" y="144" class="small">• Analyse des scripts reçus par AMSI</text>
+  <text x="508" y="166" class="small">• Réponse : IKernelActionProvider (arrêt, ACL…)</text>
+  <text x="508" y="188" class="small">• Auto-défense : DACL durcie, sc stop refusé</text>
+  <text x="508" y="210" class="small">• Arrêt uniquement par mot de passe (HMAC)</text>
+  <rect x="490" y="320" width="380" height="82" rx="12" class="box-bad"/>
+  <text x="508" y="346" class="title">Watchdog (surveillance mutuelle)</text>
+  <text x="508" y="368" class="small">Si l'un est tué, l'autre le relance en quelques secondes</text>
+  <!-- liens -->
+  <path d="M410 125 H490" class="line"/>
+  <text x="418" y="117" class="small">pipe local</text>
+  <path d="M410 366 C450 366 450 250 490 250" class="line"/>
+  <text x="420" y="300" class="small">scripts</text>
+  <path d="M215 265 H225" class="line"/>
+  <path d="M680 300 V320" class="line"/>
+</svg>
+<figcaption>Les flèches sont des canaux locaux (named pipe protégé par ACL, ou stdin/stdout pour le Native Messaging). Rien ne sort de la machine.</figcaption>
+</figure>
+<div class="two">
+  <div class="card easy"><h4>En français facile</h4>
+    <p>L'<strong>interface</strong> est ce que tu vois. Le <strong>service</strong> est le « vigile » invisible qui tourne avec les pleins pouvoirs, même quand l'interface est fermée. Il est accompagné d'un <strong>chien de garde</strong> : si quelqu'un abat l'un, l'autre le relève. L'<strong>extension navigateur</strong> vérifie les pages web.</p>
+  </div>
+  <div class="card tech"><h4>En termes informatiques</h4>
+    <ul>
+      <li>IPC UI ↔ service : <code>NamedPipeServerStream</code>, trames longueur + JSON (≤ 1 Mo), ACL : réseau refusé, utilisateurs interactifs en lecture/écriture.</li>
+      <li>Anti-usurpation : le client exige un serveur en <strong>session 0</strong> (<code>GetNamedPipeServerProcessId</code> + <code>ProcessIdToSessionId</code>).</li>
+      <li>Canal limité : état, alertes, analyse AMSI, et arrêt <em>authentifié</em>. Aucune commande « tuer tel processus » n'est exposée.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- 3 -->
+<h2 id="analyse">3. Analyse d'un fichier : la logique du score</h2>
+<p>Quand un fichier est analysé (à la demande, ou automatiquement s'il arrive dans Téléchargements), il passe dans une <strong>chaîne de moteurs</strong>. Chacun ajoute des « indices » avec des points ; le total donne un score de 0 à 100.</p>
+<figure>
+<svg viewBox="0 0 900 170" role="img" aria-label="Pipeline d'analyse">
+  <rect x="10" y="40" width="120" height="70" rx="10" class="box"/><text x="26" y="70" class="title">Fichier</text><text x="26" y="92" class="small">taille, chemin</text>
+  <rect x="160" y="10" width="200" height="140" rx="10" class="box-accent"/>
+  <text x="176" y="34" class="title">Moteurs</text>
+  <text x="176" y="56" class="small">1. Signatures SHA-256</text>
+  <text x="176" y="74" class="small">2. Règles de contenu (YARA-like)</text>
+  <text x="176" y="92" class="small">3. Heuristiques (RLO, double ext.)</text>
+  <text x="176" y="110" class="small">4. Entropie (non-PE)</text>
+  <text x="176" y="128" class="small">5. PE statique (IAT, sections)</text>
+  <rect x="390" y="40" width="150" height="70" rx="10" class="box"/><text x="406" y="70" class="title">Authenticode</text><text x="406" y="92" class="small">signature valide ?</text>
+  <rect x="570" y="40" width="140" height="70" rx="10" class="box"/><text x="586" y="70" class="title">Score 0–100</text><text x="586" y="92" class="small">preuves + heuristiques</text>
+  <rect x="740" y="20" width="150" height="40" rx="10" class="box-ok"/><text x="756" y="45" class="small">0–29 : Sain</text>
+  <rect x="740" y="65" width="150" height="40" rx="10" class="box"/><text x="756" y="90" class="small">30–69 : Suspect</text>
+  <rect x="740" y="110" width="150" height="40" rx="10" class="box-bad"/><text x="756" y="135" class="small">70+ : Malveillant</text>
+  <path d="M130 75 H160 M360 75 H390 M540 75 H570 M710 75 H740" class="line"/>
+</svg>
+<figcaption>Seuils réglables dans Réglages. Un fichier malveillant peut être mis automatiquement en quarantaine.</figcaption>
+</figure>
+<div class="two">
+  <div class="card easy"><h4>En français facile</h4>
+    <ul>
+      <li>Si le fichier est <strong>déjà connu</strong> comme virus (son « empreinte digitale »), c'est 100 points d'emblée.</li>
+      <li>S'il contient des <strong>phrases typiques</strong> de logiciels malveillants (un outil de vol de mots de passe, une note de rançon…), il prend des points.</li>
+      <li>S'il a des <strong>allures louches</strong> (programme déguisé en PDF, code compressé pour se cacher…), il prend des points aussi.</li>
+      <li>S'il est <strong>signé numériquement</strong> par un éditeur reconnu, ses points « louches » sont divisés par 4. En revanche, une preuve certaine reste une preuve, même s'il est signé : des certificats peuvent être volés.</li>
+    </ul>
+  </div>
+  <div class="card tech"><h4>En termes informatiques</h4>
+    <ul>
+      <li><code>Indicator(Source, Description, Points, Definitive)</code> : les indices <em>définitifs</em> (hash connu, règle caractéristique) ne sont jamais atténués.</li>
+      <li><code>PatternRuleEngine</code> : chaînes ASCII / UTF-16, hex avec jokers <code>??</code>, conditions <code>any</code> / <code>all</code> / N, sur les 32 premiers Mo. Les motifs sensibles sont stockés en hexadécimal dans <code>rules.json</code>.</li>
+      <li><code>PeStaticEngine</code> : <code>System.Reflection.PortableExecutable</code>, entropie de Shannon par section, sections RWX, IAT pondérée (<code>WriteProcessMemory</code>, <code>CreateRemoteThread</code>…).</li>
+      <li><strong>Échec sécurisé</strong> : un PE malformé ou un moteur qui plante ajoute des points au lieu de laisser passer.</li>
+      <li><code>WinVerifyTrust</code> hors ligne : la signature valide divise les heuristiques par 4.</li>
+      <li>Quarantaine : AES-256-GCM par blocs de 1 Mo (en-tête, index et dernier bloc authentifiés), clé protégée par DPAPI, droits NTFS restreints (exécution refusée).</li>
+    </ul>
+  </div>
+</div>
+
+<!-- 4 -->
+<h2 id="temps-reel">4. Protection temps réel</h2>
+<table>
+  <thead><tr><th>Module</th><th>En français facile</th><th>En termes informatiques</th><th>État</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Comportement</strong></td><td>Repère les enchaînements anormaux : Word qui lance une console cachée, ou une commande qui efface les sauvegardes.</td><td>ETW noyau (<code>TraceEvent</code>, Process Start) dans le service ; règles Office → shell (+ Base64), <code>vssadmin</code> / <code>wmic</code> / <code>diskshadow</code> → <code>TerminateProcess</code> sur le PID exact.</td><td><span class="pill ok">Actif</span></td></tr>
+    <tr><td><strong>Anti-ransomware</strong></td><td>Dépose de faux documents « précieux » cachés. Si un programme y touche, c'est un ransomware : CoreGuard l'arrête et répare le fichier.</td><td>Canaris cachés dans Documents / Bureau / Images de chaque profil, copie AES en mémoire ; <strong>SACL d'audit</strong> + événement de sécurité <strong>4663</strong> = PID exact du coupable → arrêt. Sans audit : alerte + restauration seules.</td><td><span class="pill ok">Actif</span></td></tr>
+    <tr><td><strong>AMSI</strong></td><td>Lit chaque script PowerShell <em>juste avant</em> qu'il s'exécute, même s'il était déguisé, et le bloque s'il est dangereux.</td><td>DLL COM native (NativeAOT) <code>IAntimalwareProvider</code> → pipe → <code>ScriptScanner</code> (règles sur le texte et sur le Base64 décodé) ; blocage si score ≥ 60 ou preuve forte ; fail-open si le service est absent.</td><td><span class="pill ok">Actif</span></td></tr>
+    <tr><td><strong>BadUSB</strong></td><td>Une clé USB peut se faire passer pour un clavier et taper des commandes à toute vitesse. CoreGuard reconnaît ce rythme surhumain et bloque le clavier 10 secondes.</td><td>Hook <code>WH_KEYBOARD_LL</code> ; fenêtre de 30 frappes : débit &gt; 200 car/s, ou ≥ 40 car/s avec un coefficient de variation &lt; 0,3 ; nouveau clavier (<code>GetRawInputDeviceList</code>) → vigilance 60 s.</td><td><span class="pill ok">Actif</span></td></tr>
+    <tr><td><strong>Presse-papiers</strong></td><td>Empêche un virus de remplacer une adresse Bitcoin copiée par la sienne, et efface un mot de passe copié au bout de 30 s.</td><td><code>AddClipboardFormatListener</code>, détection d'adresses crypto, restauration ; vidage des secrets (mots de passe, clés <code>sk-</code>, cartes).</td><td><span class="pill ok">Actif</span></td></tr>
+    <tr><td><strong>Caméra / micro</strong></td><td>Prévient quand une application utilise la webcam ou le micro.</td><td>Scrutation du registre <code>CapabilityAccessManager\ConsentStore</code>.</td><td><span class="pill warn">Sans bouton de coupure</span></td></tr>
+    <tr><td><strong>Persistance</strong></td><td>Signale un programme qui s'inscrit pour se relancer à chaque démarrage.</td><td>Clés <code>Run</code> / <code>RunOnce</code>, tâches planifiées, événement 7045 (services).</td><td><span class="pill warn">Alerte sans pop-up</span></td></tr>
+    <tr><td><strong>Téléchargements</strong></td><td>Analyse automatiquement chaque fichier téléchargé.</td><td><code>FileSystemWatcher</code> sur Téléchargements + pipeline d'analyse.</td><td><span class="pill warn">Zone.Identifier non lu</span></td></tr>
+    <tr><td><strong>Anti-phishing</strong></td><td>Compare ce que la page <em>affiche</em> (« Banque X ») à son adresse réelle, et repère les faux domaines qui ressemblent aux vrais.</td><td>Extension MV3 → Native Messaging → OCR <code>Windows.Media.Ocr</code>, QR <code>ZXing</code>, distance de Levenshtein, homographes Unicode.</td><td><span class="pill warn">Hôte à enregistrer à la main</span></td></tr>
+  </tbody>
+</table>
+
+<!-- 5 -->
+<h2 id="reponse">5. Réponse aux menaces et auto-défense</h2>
+<div class="two">
+  <div class="card easy"><h4>En français facile</h4>
+    <p>Détecter ne suffit pas : il faut <strong>agir</strong>. CoreGuard peut arrêter un programme, le geler, lui couper Internet ou verrouiller un fichier. Il refuse toujours de toucher aux programmes vitaux de Windows, pour ne jamais provoquer d'écran bleu.</p>
+    <p>Un virus essaie souvent de <strong>tuer l'antivirus</strong> avant d'agir. Avec CoreGuard, « Fin de tâche » est refusé, l'arrêt du service par Windows est refusé, et si un des deux processus tombe, l'autre le relance. Seul ton <strong>mot de passe</strong> peut éteindre la protection.</p>
+  </div>
+  <div class="card tech"><h4>En termes informatiques</h4>
+    <ul>
+      <li><code>IKernelActionProvider</code> (Core) / <code>UserModeActionProvider</code> : <code>TerminateProcess</code>, <code>NtSuspendProcess</code>, blocage pare-feu, ACL NTFS, DACL de processus. Garde-fous : PID ≤ 4, liste critique, <code>IsProcessCritical</code>.</li>
+      <li>DACL : SYSTEM en accès complet, <code>OWNER RIGHTS</code> et Everyone limités à <code>QUERY_LIMITED | SYNCHRONIZE</code>.</li>
+      <li>Service : <code>CanStop = false</code>. Watchdog : signal d'arrêt légitime signé HMAC sur un stdin privé.</li>
+      <li>Arrêt : défi-réponse HMAC-SHA256, clé PBKDF2 (600 000 itérations), nonce à usage unique valable 60 s, verrouillage 5 min après 5 échecs. Le mot de passe ne transite jamais.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- 6 -->
+<h2 id="ia">6. L'intelligence artificielle : à quel niveau on est</h2>
+<div class="key"><strong>Principe de conception :</strong> l'IA <em>explique</em>, elle ne <em>décide</em> pas. Un modèle de langage peut être trompé par le contenu même du fichier qu'il lit (injection de prompt). Les décisions de blocage restent donc à des règles déterministes, testées et vérifiables.</div>
+<table>
+  <thead><tr><th>Niveau</th><th>Rôle</th><th>Technologie</th><th>État</th></tr></thead>
+  <tbody>
+    <tr><td><strong>IA niveau 2</strong><br>(asynchrone)</td><td>Explique en français simple pourquoi un fichier est jugé douteux, et propose une famille de menace.</td><td><code>LLamaSharp</code> + <code>Llama-3.2-3B-Instruct-Q4_K_M.gguf</code> (~2 Go), 100 % local, sur le CPU.</td><td><span class="pill ok">Fait</span></td></tr>
+    <tr><td><strong>IA niveau 1</strong><br>(temps réel &lt; 50 ms)</td><td>Donne un score « malveillant » à un exécutable à partir de centaines de caractéristiques.</td><td>Modèle de type <strong>EMBER</strong> exporté en ONNX, <code>Microsoft.ML.OnnxRuntime</code>.</td><td><span class="pill bad">Prévu (étape 12)</span></td></tr>
+    <tr><td><strong>Vision</strong></td><td>Lire le texte d'une page web et les QR codes.</td><td><code>Windows.Media.Ocr</code> (moteur OCR intégré à Windows), <code>ZXing.Net</code>.</td><td><span class="pill ok">Fait (extension)</span></td></tr>
+  </tbody>
+</table>
+<h3>Comment le LLM est utilisé, pas à pas</h3>
+<ol class="steps">
+  <li>Les moteurs locaux rendent leur verdict. Si c'est <strong>« Sain »</strong>, l'IA n'est même pas appelée (économie de temps et d'énergie).</li>
+  <li>Sinon, CoreGuard construit un <strong>rapport technique</strong> : nom du fichier nettoyé (caractères de contrôle retirés, 200 caractères au plus), extension, taille, SHA-256, score et liste des indices.</li>
+  <li>Un <strong>prompt système</strong> précise que ces données ne sont pas fiables et qu'il ne faut jamais suivre une instruction qui s'y trouverait. Il impose aussi la réponse : uniquement un objet JSON <code>{verdict, confidence, family, explanation}</code>.</li>
+  <li>Le modèle répond en local, avec une <strong>température de 0,2</strong> (réponses stables), 512 jetons au plus, un contexte de 4 096 jetons et un délai de 90 s. Au plus 5 appels par analyse de dossier.</li>
+  <li>La réponse est <strong>analysée défensivement</strong> (<code>AiResponseParser</code>) : un JSON invalide est ignoré. Si le modèle est absent ou trop lent, CoreGuard produit une explication à partir des indices locaux.</li>
+  <li>L'explication s'affiche dans le détail du résultat. Le verdict affiché reste celui des moteurs.</li>
+</ol>
+<div class="two">
+  <div class="card easy"><h4>En français facile</h4>
+    <p>L'IA est comme un collègue expert à qui l'on montre le rapport d'enquête, et qui le résume en une phrase claire. Elle ne voit pas le fichier lui-même, seulement le rapport, et elle n'a pas le droit de décider de la sanction.</p>
+  </div>
+  <div class="card tech"><h4>En termes informatiques</h4>
+    <p>Interface <code>IAiProvider.CompleteAsync(system, user, ct)</code>, implémentée par <code>LLamaSharpProvider</code> (chargement paresseux du modèle au premier appel). Elle est injectée par DI dans <code>ScanService</code>, ce qui permet d'en changer sans toucher au pipeline.</p>
+  </div>
+</div>
+
+<!-- 7 -->
+<h2 id="ia-futur">7. Comment ajouter d'autres services d'IA</h2>
+<p>L'architecture prévoit déjà le point d'ancrage : chaque capacité d'IA est une <strong>interface</strong> dans <code>AntivirusIA.Core</code>, implémentée dans un module séparé et branchée dans la <em>composition root</em> (DI). On ajoute donc une IA comme on ajoute un moteur, sans réécrire le reste.</p>
+<table>
+  <thead><tr><th>Service d'IA envisagé</th><th>À quoi il sert</th><th>Comment l'intégrer</th><th>Garde-fou</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Classifieur statique EMBER</strong></td><td>Score « malveillant » d'un exécutable inconnu, en moins de 50 ms.</td><td>Extraire un sous-ensemble des caractéristiques EMBER (histogrammes d'octets, entropie, en-têtes, imports, sections), entraîner hors ligne (LightGBM → ONNX), inférer avec <code>OnnxRuntime</code> dans un nouveau <code>IDetectionEngine</code>.</td><td>Indice non définitif, plafonné en points ; atténué par la signature numérique.</td></tr>
+    <tr><td><strong>Reconnaissance visuelle de marques</strong></td><td>Reconnaître le logo d'une banque ou de Microsoft sur une page de connexion hébergée sur un domaine sans rapport.</td><td>Petit réseau de vision (MobileNet / CLIP quantifié en ONNX) appliqué à la capture d'onglet déjà envoyée par l'extension ; comparaison marque détectée ↔ domaine réel.</td><td>Alerte de phishing, pas de blocage de navigation automatique.</td></tr>
+    <tr><td><strong>OCR enrichi</strong></td><td>Lire plus de langues et les textes stylisés des pages piégées.</td><td>Garder <code>Windows.Media.Ocr</code> (rapide, intégré) et ajouter un modèle OCR ONNX en secours.</td><td>Texte OCR jamais renvoyé en entier à la page.</td></tr>
+    <tr><td><strong>Désobfuscation par le LLM</strong></td><td>Réécrire un script illisible en version claire pour l'expliquer.</td><td>Nouveau prompt spécialisé sur le contenu AMSI bloqué, exécuté de façon asynchrone dans l'UI ; affichage dans le détail de l'alerte.</td><td>Le blocage AMSI reste décidé par les règles.</td></tr>
+    <tr><td><strong>Détection d'anomalies comportementales</strong></td><td>Repérer une séquence d'événements jamais vue (processus, fichiers, réseau).</td><td>Modèle léger (Isolation Forest ou auto-encodeur en ONNX) appris sur la télémétrie ETW de la machine elle-même.</td><td>Mode « suggestion » : alerte sans arrêt automatique.</td></tr>
+    <tr><td><strong>Reconnaissance de cadence</strong> (BadUSB)</td><td>Distinguer finement la frappe humaine d'un injecteur lent.</td><td>Remplacer les seuils par un petit classifieur sur les intervalles de frappe (features : moyenne, variance, rafales).</td><td>Blocage limité à 10 s ; module désactivable.</td></tr>
+  </tbody>
+</table>
+<pre>// Patron d'intégration (déjà utilisé pour les moteurs et le LLM)
+public interface IDetectionEngine            // AntivirusIA.Core
+{
+    string Name { get; }
+    Task&lt;IReadOnlyList&lt;Indicator&gt;&gt; AnalyzeAsync(FileReport report, CancellationToken ct);
+}
+
+services.AddSingleton&lt;IDetectionEngine, EmberOnnxEngine&gt;();   // une ligne dans App.xaml.cs</pre>
+
+<!-- 8 -->
+<h2 id="demos">8. Comment tout cela sera démontré</h2>
+<p>Chaque scénario utilise un <strong>spécimen inoffensif</strong> (dossier <code>demo/</code>). Il ne chiffre, ne vole et n'envoie rien. Il reproduit seulement le <em>comportement</em> d'une attaque pour déclencher CoreGuard, avec un nettoyage et un arrêt d'urgence.</p>
+<div class="note"><strong>Prérequis :</strong> installer le service dans une console PowerShell administrateur avec <code>./scripts/install-service.ps1</code>. Ce script demande le mot de passe de protection, active l'audit NTFS et enregistre le fournisseur AMSI. Les démos se lancent ensuite depuis une session normale.</div>
+<table>
+  <thead><tr><th>#</th><th>Scénario</th><th>Spécimen</th><th>Ce que le public voit</th><th>État</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>PowerShell malveillant (AMSI)</td><td><code>01-powershell-amsi</code></td><td>Le script est refusé par Windows avant de s'exécuter ; alerte « Script bloqué ».</td><td><span class="pill ok">Prêt</span></td></tr>
+    <tr><td>2</td><td>Ransomware + suppression des sauvegardes</td><td><code>02-ransomware-canari</code></td><td>Le faux ransomware touche un leurre : il est arrêté net et le fichier est restauré.</td><td><span class="pill ok">Prêt</span></td></tr>
+    <tr><td>3</td><td>Tentative de tuer l'antivirus</td><td><code>08-anti-kill</code></td><td><code>taskkill</code>, <code>sc stop</code> et <code>Stop-Service</code> sont refusés ; seul le mot de passe arrête CoreGuard.</td><td><span class="pill ok">Prêt</span></td></tr>
+    <tr><td>4</td><td>Clé BadUSB</td><td><code>04-badusb-hid</code></td><td>La frappe automatique est stoppée net ; alerte « Frappe automatique bloquée ».</td><td><span class="pill ok">Prêt</span></td></tr>
+    <tr><td>5</td><td>Injection en mémoire (fileless)</td><td>—</td><td>Prévu : un programme qui alloue une zone mémoire exécutable et inscriptible est arrêté.</td><td><span class="pill bad">Étape 7</span></td></tr>
+    <tr><td>6</td><td>Phishing visuel (OCR)</td><td><code>06-phishing-visuel</code></td><td>L'extension signale une fausse page de connexion.</td><td><span class="pill warn">Hôte à enregistrer</span></td></tr>
+    <tr><td>7</td><td>Vol de mots de passe du navigateur</td><td><code>07-vol-identifiants</code></td><td>Prévu : la lecture de « Login Data » par un autre programme que le navigateur est bloquée.</td><td><span class="pill bad">Étape 8</span></td></tr>
+    <tr><td>8</td><td>Crypto-clipper</td><td><code>05-crypto-clipper</code></td><td>L'adresse Bitcoin remplacée est remise d'origine instantanément.</td><td><span class="pill ok">Prêt</span></td></tr>
+    <tr><td>9</td><td>Persistance au démarrage</td><td><code>03-persistance</code></td><td>Alerte « Nouvelle persistance » en quelques secondes.</td><td><span class="pill warn">Alerte (pop-up prévue)</span></td></tr>
+    <tr><td>10</td><td>Accès à la caméra</td><td>—</td><td>Alerte « Webcam utilisée » ; bouton de coupure prévu.</td><td><span class="pill warn">Détection seule</span></td></tr>
+  </tbody>
+</table>
+<h3>Déroulé conseillé pour la soutenance</h3>
+<ol class="steps">
+  <li>Montrer le tableau de bord : modules actifs, service connecté, auto-défense active.</li>
+  <li>Analyser un dossier d'échantillons (EICAR et fichiers de test) : verdicts, score, « preuve forte », explication par l'IA.</li>
+  <li>Lancer les scénarios 1, 2, 4 et 8 : chaque fois, l'alerte apparaît en direct et la menace est neutralisée.</li>
+  <li>Scénario 3 en dernier : tenter de tuer CoreGuard, échouer, puis l'arrêter proprement avec le mot de passe.</li>
+</ol>
+
+<!-- 9 -->
+<h2 id="reste">9. Ce qui reste à faire en Phase 1</h2>
+<table>
+  <thead><tr><th>Étape</th><th>Contenu</th></tr></thead>
+  <tbody>
+    <tr><td>7</td><td>Scan mémoire : <code>VirtualQueryEx</code>, régions privées <code>PAGE_EXECUTE_READWRITE</code>, en-têtes MZ en mémoire → arrêt du processus ; spécimen bénin.</td></tr>
+    <tr><td>8</td><td>Anti-infostealer : ACL et audit sur <code>Login Data</code>, <code>Local State</code> et <code>Cookies</code> (Chrome, Edge, Brave).</td></tr>
+    <tr><td>9</td><td>Privacy Guard actif : bouton « Couper » la caméra ou le micro.</td></tr>
+    <tr><td>10</td><td>Persistance interactive : pop-up Autoriser / Bloquer, retrait de l'entrée, dossier Startup.</td></tr>
+    <tr><td>11</td><td>Extension : script d'enregistrement de l'hôte, coffre-fort branché à l'auto-remplissage, verdicts affichés dans l'UI.</td></tr>
+    <tr><td>12</td><td>IA niveau 1 (EMBER / ONNX), WFP natif, Mode Paranoïa réel, <code>Zone.Identifier</code>.</td></tr>
+  </tbody>
+</table>
+<p>La <strong>Phase 2</strong> rebranchera le driver Rust Ring 0 (minifilter, <code>ObRegisterCallbacks</code>) derrière <code>IKernelActionProvider</code>. Les blocages passeront alors de « après coup » à « avant que ça arrive ».</p>
+
+<!-- 10 -->
+<h2 id="limites">10. Limites assumées (honnêteté technique)</h2>
+<ul>
+  <li><strong>Mode utilisateur :</strong> un administrateur disposant de <code>SeDebugPrivilege</code> peut encore tuer le service et le watchdog en même temps ; le gestionnaire de services relance alors le service.</li>
+  <li><strong>Après coup :</strong> une commande très rapide (par exemple <code>vssadmin</code>) peut avoir agi avant d'être arrêtée. Seul le driver pourra la bloquer en amont.</li>
+  <li><strong>AMSI :</strong> fournisseur 64 bits uniquement et non signé ; selon la configuration, Windows peut ignorer un fournisseur non signé.</li>
+  <li><strong>Leurres :</strong> un utilisateur qui ouvre et enregistre lui-même un leurre verra son éditeur arrêté. Ils sont cachés pour l'éviter.</li>
+  <li><strong>BadUSB :</strong> la saisie automatique d'un gestionnaire de mots de passe peut être prise pour une injection (module désactivable).</li>
+  <li><strong>IA :</strong> un LLM de 3 milliards de paramètres sur CPU est lent (plusieurs dizaines de secondes au premier appel) ; d'où le plafond d'appels et le repli local.</li>
+</ul>
+
+<!-- 11 -->
+<h2 id="glossaire">11. Glossaire</h2>
+<table>
+  <tbody>
+    <tr><td><strong>ETW</strong></td><td>Event Tracing for Windows : le « journal de bord » interne de Windows, qui annonce chaque processus créé.</td></tr>
+    <tr><td><strong>AMSI</strong></td><td>Antimalware Scan Interface : la porte par laquelle PowerShell et Office montrent un script à l'antivirus avant de l'exécuter.</td></tr>
+    <tr><td><strong>SACL / 4663</strong></td><td>Règle d'audit posée sur un fichier ; Windows note alors (événement 4663) quel programme y a accédé.</td></tr>
+    <tr><td><strong>DACL</strong></td><td>Liste de qui a le droit de faire quoi sur un objet (ici : qui peut arrêter le processus CoreGuard).</td></tr>
+    <tr><td><strong>HMAC</strong></td><td>Signature cryptographique prouvant la connaissance d'un secret sans le révéler.</td></tr>
+    <tr><td><strong>NativeAOT</strong></td><td>Compilation du C# directement en code machine : indispensable pour une DLL chargée dans d'autres programmes.</td></tr>
+    <tr><td><strong>GGUF / ONNX</strong></td><td>Formats de fichiers de modèles d'IA : GGUF pour les LLM (llama.cpp), ONNX pour les modèles de classification.</td></tr>
+    <tr><td><strong>Canari</strong></td><td>Fichier leurre : personne ne doit y toucher, donc tout accès est suspect.</td></tr>
+  </tbody>
+</table>
+
+<footer>CoreGuard — document généré à partir du dépôt (branche <code>main</code>, commit <code>ccbeb29</code>). Détails techniques et état exact : <code>docs/AUDIT.md</code>, <code>docs/MODULES.md</code>, <code>demo/README.md</code>.</footer>
+</main>
+</div>
+</body>
+</html>
