@@ -25,6 +25,10 @@ public sealed partial class AppSettings : ObservableObject
     [ObservableProperty] private bool _lockOnBadUsb;
     [ObservableProperty] private bool _lockdownCutsNetwork;
 
+    // Mode arrière-plan : fermer la fenêtre la masque ; lancement automatique à l'ouverture de session
+    [ObservableProperty] private bool _runInBackground = true;
+    [ObservableProperty] private bool _startWithWindows = true;
+
     /// <summary>Entrées de démarrage autorisées par l'utilisateur (empreintes : on redemande si la commande change).</summary>
     public List<string> AllowedPersistence { get; set; } = [];
 

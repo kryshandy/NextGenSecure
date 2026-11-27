@@ -18,9 +18,17 @@
 
                     <!-- Apparence -->
                     <ctl:SectionCard Icon="{StaticResource Icon.Sun}" Title="Apparence" Subtitle="Le thème s'applique immédiatement.">
-                        <ctl:SettingRow Title="Thème sombre" Description="Désactivez pour passer au thème clair." ShowSeparator="False">
+                        <StackPanel>
+                        <ctl:SettingRow Title="Thème sombre" Description="Désactivez pour passer au thème clair.">
                             <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding Settings.DarkTheme}" AutomationProperties.Name="Thème sombre"/>
                         </ctl:SettingRow>
+                        <ctl:SettingRow Title="Continuer en arrière-plan à la fermeture" Description="La fenêtre se masque ; la protection reste active (icône près de l'horloge).">
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding Settings.RunInBackground}" AutomationProperties.Name="Continuer en arrière-plan"/>
+                        </ctl:SettingRow>
+                        <ctl:SettingRow Title="Lancer CoreGuard à l'ouverture de session" Description="Démarre caché dans la zone de notification (sans droits administrateur)." ShowSeparator="False">
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding Settings.StartWithWindows}" AutomationProperties.Name="Lancer au démarrage"/>
+                        </ctl:SettingRow>
+                        </StackPanel>
                     </ctl:SectionCard>
 
                     <!-- Seuils de score -->

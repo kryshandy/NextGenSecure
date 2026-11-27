@@ -79,6 +79,7 @@ CoreGuard.sln
 - ✅ Quarantaine **AES-256-GCM** authentifiée, clé protégée par **DPAPI**, droits NTFS restreints (exécution refusée), restauration refusée si le fichier est altéré
 - ✅ **Arrêt immédiat** des commandes de suppression des clichés instantanés (`vssadmin`, `wmic`, `diskshadow`) repérées par ETW, via `IKernelActionProvider` (garde-fous : jamais de processus critique de Windows)
 - ✅ **Anti-ransomware** : canaris cachés dans les dossiers de chaque utilisateur, restauration immédiate, et **arrêt du processus coupable** identifié par l'audit NTFS (PID exact, événement 4663 ; activé par `install-service.ps1`). Sans audit : alerte et restauration, jamais d'arrêt sur supposition
+- ✅ **Mode arrière-plan** — icône dans la zone de notification (Ouvrir / Verrouiller le PC / Quitter), fermer la fenêtre la masque sans arrêter la protection, bulles Windows pour les alertes, lancement caché à l'ouverture de session (`--background`, sans admin), instance unique
 - ✅ **Gardien de persistance** (Run/RunOnce, tâches planifiées, dossier Démarrage, services 7045) — fenêtre **Autoriser / Bloquer** avec niveau de risque, retrait réel (fichier Démarrage mis en quarantaine), choix mémorisé
 - 🟡 Pare-feu : règles par application et **kill switch** via le pare-feu Windows ; WFP natif prévu
 - ✅ **Auto-défense** du service : DACL durcie (taskkill refusé), watchdog mutuel (chaque processus relance l'autre), `sc stop` refusé, arrêt uniquement par **mot de passe** (défi-réponse HMAC, verrouillage après 5 échecs)

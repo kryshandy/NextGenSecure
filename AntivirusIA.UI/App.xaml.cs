@@ -22,10 +22,23 @@ namespace AntivirusIA.UI;
 public partial class App : Application
 {
     private ServiceProvider? _services;
+    private Mutex? _singleInstance;
+    private EventWaitHandle? _showSignal;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // Instance unique : un second lancement ramène simplement la fenêtre de l'instance déjà active
+        _singleInstance = new Mutex(true, @"Local\CoreGuard.UI.Instance", out bool first);
+        _showSignal = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\CoreGuard.UI.Show");
+        if (!first)
+        {
+            _showSignal.Set();
+            Shutdown();
+            return;
+        }
+        bool background = e.Args.Contains(BackgroundHost.BackgroundArgument, StringComparer.OrdinalIgnoreCase);
 
         DispatcherUnhandledException += (_, args) =>
         {
@@ -48,7 +61,10 @@ public partial class App : Application
 
         var window = _services.GetRequiredService<MainWindow>();
         MainWindow = window;
-        window.Show();
+        var host = _services.GetRequiredService<BackgroundHost>();
+        host.Attach(window);
+        if (!background) window.Show(); // lancé à l'ouverture de session : directement dans la zone de notification
+        ThreadPool.RegisterWaitForSingleObject(_showSignal, (_, _) => UiThread.Post(host.ShowWindow), null, Timeout.Infinite, false);
 
         // Démarre les modules temps réel hors thread UI ; les échecs sont isolés module par module
         _ = _services.GetRequiredService<ProtectionService>().ApplyAsync();
@@ -117,6 +133,7 @@ public partial class App : Application
         services.AddSingleton<ServiceLink>();
         services.AddSingleton<LockdownUiController>();
         services.AddSingleton<PersistencePromptService>();
+        services.AddSingleton<BackgroundHost>();
         // Gestionnaire de mots de passe (coffre local) + canal d'auto-remplissage pour l'extension
         services.AddSingleton(sp => new VaultService(dataDir, sp.GetRequiredService<AlertHub>()));
         services.AddSingleton<ProtectionService>();

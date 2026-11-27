@@ -6,8 +6,12 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <!-- WinForms uniquement pour l'icône de la zone de notification (NotifyIcon) -->
+    <UseWindowsForms>true</UseWindowsForms>
     <LangVersion>latest</LangVersion>
     <RootNamespace>AntivirusIA.UI</RootNamespace>
+    <AssemblyTitle>CoreGuard</AssemblyTitle>
+    <Product>CoreGuard</Product>
     <ApplicationIcon>Assets\coreguard.ico</ApplicationIcon>
   </PropertyGroup>
 
@@ -32,6 +36,8 @@
 
   <ItemGroup>
     <Using Include="System.IO" />
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0" />
   </ItemGroup>

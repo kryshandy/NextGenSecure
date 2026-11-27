@@ -19,9 +19,13 @@ public sealed class DialogService : IDialogService
 {
     public bool Confirm(string title, string message, string confirmText = "Confirmer", bool danger = false)
     {
-        var dialog = new ConfirmDialog(title, message, confirmText, danger) { Owner = Application.Current.MainWindow };
+        var dialog = new ConfirmDialog(title, message, confirmText, danger) { Owner = VisibleOwner() };
         return dialog.ShowDialog() == true;
     }
+
+    // Fenêtre principale cachée (mode arrière-plan) : pas de propriétaire, la boîte s'affiche seule au premier plan
+    private static Window? VisibleOwner() =>
+        Application.Current.MainWindow is { IsVisible: true } w ? w : null;
 
     public string? PickFile(string title = "Choisir un fichier", string filter = "Tous les fichiers (*.*)|*.*")
     {
@@ -31,7 +35,7 @@ public sealed class DialogService : IDialogService
 
     public bool AskPassword(string title, string message, string confirmText, Func<string, Task<CoreGuard.Ipc.StopResult>> submit)
     {
-        var dialog = new PasswordDialog(title, message, confirmText, submit) { Owner = Application.Current.MainWindow };
+        var dialog = new PasswordDialog(title, message, confirmText, submit) { Owner = VisibleOwner() };
         return dialog.ShowDialog() == true;
     }
 

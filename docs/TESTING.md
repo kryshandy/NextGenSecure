@@ -136,6 +136,11 @@ Ces spécimens s'exécutent (côté « attaque »), mais la **capture automatiqu
 - **Comment tester :** `dotnet test CoreGuard.Vault.Tests` (11 tests : création, déverrouillage, mauvais mot de passe, round-trip chiffrement, générateur).
 - **Statut : ✅ module actif / ⚠️ pas de page UI** — le coffre fonctionne (Argon2id + AES-256-GCM) mais n'a pas encore d'écran dédié dans l'interface.
 
+### US-19 — Protection permanente en arrière-plan
+- **…je veux** que CoreGuard continue de me protéger quand je ferme sa fenêtre et qu'il redémarre avec Windows.
+- **Comment tester :** fermer la fenêtre (croix) → bulle « CoreGuard reste actif », l'icône reste près de l'horloge. Lancer `./demo/03-persistance/demo-persistance.ps1` fenêtre fermée → fenêtres « Autoriser / Bloquer » + bulle « CoreGuard - Persistance ». Relancer l'exécutable → la fenêtre existante revient (pas de seconde instance). Clic droit sur l'icône → Ouvrir / Verrouiller le PC / Quitter (confirmation). `reg query HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v CoreGuard` montre la commande `--background` ; se déconnecter / reconnecter → CoreGuard démarre caché.
+- **Statut : ✅ actif** (réglages : « Continuer en arrière-plan », « Lancer à l'ouverture de session »).
+
 ---
 
 ## 4. Récapitulatif des spécimens de démo

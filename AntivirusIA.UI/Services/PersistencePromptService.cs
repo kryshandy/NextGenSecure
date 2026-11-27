@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using AntivirusIA.Core.Interfaces;
 using AntivirusIA.UI.Models;
@@ -27,6 +27,7 @@ public sealed class PersistencePromptService(
     /// <summary>Appelé depuis n'importe quel thread (événement du gardien).</summary>
     public void Handle(PersistenceEvent evt)
     {
+        if (BackgroundHost.IsOwnCommand(evt.Command)) return; // CoreGuard lui-même (lancement automatique)
         string key = KeyOf(evt);
         if (settings.AllowedPersistence.Contains(key))
         {
