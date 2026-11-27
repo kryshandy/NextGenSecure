@@ -106,11 +106,29 @@ public class TrustCascadeTests
     }
 
     [TestMethod]
-    public void Page_de_connexion_sans_marque_zone_grise_pour_l_IA()
+    public void Page_de_connexion_sans_marque_pas_soumise_a_l_IA()
     {
         var d = Analyzer().CheckPage("https://club-de-tennis-xyz.example/membres", "Espace membres\nIdentifiant\nMot de passe", true);
-        Assert.AreEqual(PhishingVerdict.Safe, d.Verdict);   // les règles ne trouvent rien…
-        Assert.IsTrue(d.NeedsReview);                       // …l'IA relit (elle peut seulement aggraver)
+        Assert.AreEqual(PhishingVerdict.Safe, d.Verdict);
+        Assert.IsFalse(d.NeedsReview, "un simple identifiant / mot de passe ne justifie pas d'aggraver");
+    }
+
+    [TestMethod]
+    public void Donnees_sensibles_sans_marque_zone_grise_pour_l_IA()
+    {
+        var d = Analyzer().CheckPage("https://suivi-colis-xyz.example/frais",
+            "Votre colis est bloqué. Frais de 1,99 €. Numéro de carte bancaire. Cryptogramme (CVV). Payer", true);
+        Assert.AreEqual(PhishingVerdict.Safe, d.Verdict);   // aucune règle ne se déclenche…
+        Assert.IsTrue(d.NeedsReview);                       // …mais la demande de carte justifie la revue par l'IA
+    }
+
+    [TestMethod]
+    public void Marque_sur_son_propre_domaine_marque_propre()
+    {
+        var d = Analyzer().CheckPage("https://www.orange.cm/fr/orange-money.html", "Orange Money\nCode secret\nValider", true);
+        Assert.AreEqual(PhishingVerdict.Safe, d.Verdict);
+        CollectionAssert.Contains((d.OwnBrands ?? []).ToList(), "orange");
+        Assert.IsFalse(d.NeedsReview);
     }
 
     [TestMethod]

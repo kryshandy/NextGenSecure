@@ -53,14 +53,14 @@ foreach (var c in corpus)
         var (text, _) = await ocr.ReadAsync(await File.ReadAllBytesAsync(Path.Combine(shots, Path.ChangeExtension(c.Page, ".png"))));
         d = sites.CheckPage(c.Url, text, hasPassword: true) is var p ? p with { Reasons = p.Reasons } : d;
         string rules = d.Verdict.ToString();
-        string final = rules, aiText = d.NeedsReview ? "—" : "non sollicitée";
+        string final = rules, aiText = d.NeedsReview ? "—" : "non sollicitée (rien à aggraver)";
         if (d.NeedsReview && ai is not null)
         {
             var facts = new SiteFacts(c.Url, d.Domain, rules, d.Reasons.Take(12).ToList(), d.Brands.Take(12).ToList(), d.LoginPage, false,
-                SiteAnalyzer.Excerpt(text));
+                SiteAnalyzer.Excerpt(text), (d.OwnBrands ?? []).ToList());
             string answer = await ai.CompleteAsync(SiteReview.SystemPrompt, SiteReview.UserPrompt(facts));
             var (aiVerdict, reason) = SiteReview.ParseAnswer(answer);
-            final = SiteReview.Merge(rules, aiVerdict);
+            final = SiteReview.Decide(facts, aiVerdict);
             aiText = $"{aiVerdict ?? "illisible"} : {reason}";
         }
         rows.Add((c.Url, c.Note, c.Expected, rules, final, d.Trust.ToString(), aiText, sw.Elapsed.TotalSeconds, string.Join(" ; ", d.Reasons)));

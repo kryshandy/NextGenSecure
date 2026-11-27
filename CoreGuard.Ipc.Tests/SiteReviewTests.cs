@@ -18,6 +18,14 @@ public class SiteReviewTests
         Assert.AreEqual(expected, SiteReview.ParseAnswer(answer).Verdict);
 
     [TestMethod]
+    public void Reponse_libre_garde_une_vraie_phrase()
+    {
+        var (verdict, reason) = SiteReview.ParseAnswer("Réponse : arnaque\nLa page réclame un paiement par carte sous prétexte d'un colis bloqué.");
+        Assert.AreEqual("Phishing", verdict);
+        Assert.AreEqual("La page réclame un paiement par carte sous prétexte d'un colis bloqué.", reason);
+    }
+
+    [TestMethod]
     public void Raison_bornee_sans_controle()
     {
         var (_, reason) = SiteReview.ParseAnswer("{\"verdict\":\"doute\",\"raison\":\"" + new string('x', 500) + "\u0007\"}");
@@ -34,6 +42,23 @@ public class SiteReviewTests
     [DataRow("Safe", null, "Safe")]
     public void L_IA_peut_seulement_aggraver(string rules, string? ai, string expected) =>
         Assert.AreEqual(expected, SiteReview.Merge(rules, ai));
+
+    [TestMethod]
+    public void L_IA_aggrave_seulement_sur_indice_objectif()
+    {
+        var club = new SiteFacts("https://club.example/", "club.example", "Safe", [], [], true, false, "Espace membres Identifiant Mot de passe");
+        Assert.AreEqual("Safe", SiteReview.Decide(club, "Phishing"), "petit site honnête : l'IA seule ne suffit pas");
+
+        var colis = club with { Excerpt = "Colis bloqué : numéro de carte bancaire et cryptogramme" };
+        Assert.AreEqual("Phishing", SiteReview.Decide(colis, "Phishing"));
+
+        var marque = club with { Brands = ["paypal"] };
+        Assert.AreEqual("Suspicious", SiteReview.Decide(marque, "Suspicious"));
+
+        var officiel = colis with { OwnBrands = ["orange"] };
+        Assert.AreEqual("Safe", SiteReview.Decide(officiel, "Phishing"), "la marque est chez elle : l'IA ne peut pas l'accuser");
+        Assert.AreEqual("Phishing", SiteReview.Decide(officiel with { Verdict = "Phishing" }, "Safe"), "et ne rassure jamais");
+    }
 
     [TestMethod]
     public void La_page_ne_peut_pas_fermer_l_extrait()

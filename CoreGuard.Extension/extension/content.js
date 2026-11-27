@@ -14,6 +14,15 @@
     return Array.from(document.querySelectorAll('input[type="password"]')).filter((el) => el.offsetParent !== null);
   }
 
+  // Données sensibles demandées sans champ mot de passe : carte bancaire, cryptogramme, code PIN, IBAN
+  const MOTIF_SENSIBLE = /(carte|card|cvv|cvc|crypto|pin|iban|code.?secret|security.?code)/i;
+  function trouverChampsSensibles() {
+    return Array.from(document.querySelectorAll("input")).filter((el) => el.offsetParent !== null && (
+      /^cc-/.test(el.autocomplete || "") ||
+      MOTIF_SENSIBLE.test([el.name, el.id, el.placeholder, el.getAttribute("aria-label") || ""].join(" ")) ||
+      (el.labels && Array.from(el.labels).some((l) => MOTIF_SENSIBLE.test(l.textContent || "")))));
+  }
+
   function trouverChampIdentifiant(champMdp) {
     const formulaire = champMdp.form || document;
     const candidats = Array.from(
@@ -34,7 +43,7 @@
   }
 
   function signalerFormulaire() {
-    if (dejaSignale || trouverChampsMotDePasse().length === 0) return;
+    if (dejaSignale || (trouverChampsMotDePasse().length === 0 && trouverChampsSensibles().length === 0)) return;
     // champ visible : le service worker vérifie l'URL avec le signal « mot de passe » puis capture la page
     dejaSignale = true;
     chrome.runtime.sendMessage({ type: "loginFormDetected" });

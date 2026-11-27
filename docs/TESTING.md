@@ -123,7 +123,8 @@ Ces spécimens s'exécutent (côté « attaque »), mais la **capture automatiqu
 ### US-15 — Phishing visuel par OCR (extension navigateur)
 - **Mesure sans installation :** `dotnet run --project demo/10-phishing-ia/eval` (captures réelles des pages de labo, OCR, base de confiance, IA locale) → précision / rappel avec et sans IA, détail dans `demo/10-phishing-ia/resultats.md`.
 - **En direct :** `./scripts/install-browser-extension.ps1`, charger l'extension (`CoreGuard.Extension/extension/`), ouvrir CoreGuard, lancer `./demo/10-phishing-ia/serve-phishing-lab.ps1` et suivre `demo/10-phishing-ia/README.md` (interception, « doute », avis de l'IA, liste noire, confiance confirmée dans CoreGuard). Page « image seule » : `./demo/06-phishing-visuel/serve-phishing-demo.ps1` puis bouton « Analyser cette page » de l'extension.
-- **Statut : ✅ actif** — 73 tests extension (dont base de confiance réelle et cascade) + 11 tests de revue/relais (Ipc).
+- **Résultat mesuré (19 cas) :** règles seules 9/11 arnaques, 0 fausse alerte ; règles + IA avec garde-fou 11/11, 0 fausse alerte (historique des essais dans `demo/10-phishing-ia/README.md`).
+- **Statut : ✅ actif et vérifié en direct dans Edge** (interception, « doute », liste noire, confiance confirmée dans CoreGuard, alertes du tableau de bord) — 75 tests extension + 17 tests de revue/relais (Ipc).
 
 ### US-16 — BadUSB (frappe HID anormale)
 - **Comment tester :** `dotnet run --project .\demo\04-badusb-hid` (frappe ~1500 car/s dans sa propre fenêtre ; `Échap` pour arrêter).

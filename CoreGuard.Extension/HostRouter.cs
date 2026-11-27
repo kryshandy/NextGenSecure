@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using CoreGuard.Ipc;
 
 namespace CoreGuard.Extension;
@@ -208,7 +208,7 @@ public sealed class HostRouter
 
     private static SiteFacts Facts(string url, SiteDecision d, string excerpt) =>
         new(url.Length > 2000 ? url[..2000] : url, d.Domain, d.Verdict.ToString(), d.Reasons.Take(12).ToList(),
-            d.Brands.Take(12).ToList(), d.LoginPage, d.Trust == SiteTrust.Known, excerpt);
+            d.Brands.Take(12).ToList(), d.LoginPage, d.Trust == SiteTrust.Known, excerpt, (d.OwnBrands ?? []).Take(12).ToList());
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 

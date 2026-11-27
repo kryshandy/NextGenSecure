@@ -91,7 +91,7 @@ public sealed class PhishingReviewService : IDisposable
             if (aiVerdict is null) return new SiteReply(f.Verdict, null, false, true);
 
             // L'IA ne peut qu'aggraver : seul l'utilisateur peut « remonter » un site
-            string final = SiteReview.Merge(f.Verdict, aiVerdict);
+            string final = SiteReview.Decide(f, aiVerdict); // aggravation seulement sur indice objectif
             if (SiteReview.Rank(final) > SiteReview.Rank(f.Verdict)) Publish(final, f.Domain, f.Reasons, reason); // aggravé par l'IA
             return new SiteReply(final, reason, true, true);
         }

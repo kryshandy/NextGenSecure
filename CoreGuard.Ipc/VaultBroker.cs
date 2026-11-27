@@ -29,7 +29,8 @@ public sealed record SiteFacts(
     IReadOnlyList<string> Brands,
     bool LoginPage,
     bool KnownDomain,
-    string Excerpt);
+    string Excerpt,
+    IReadOnlyList<string>? OwnBrands = null);
 
 /// <summary>Réponse de l'application : verdict final (jamais plus clément que celui des règles), explication de l'IA.</summary>
 public sealed record SiteReply(string Verdict, string? Explanation, bool AiUsed, bool Accepted, bool Denied = false, bool Unavailable = false)
@@ -174,7 +175,7 @@ public static partial class VaultBroker
     // Faits bornés : la trame de 16 Ko le garantit en partie, on borne aussi chaque champ
     private static bool IsBounded(SiteFacts f) =>
         f.Url is { Length: > 0 and < 2048 } && f.Domain is { Length: > 0 and < 256 } && f.Verdict is "Safe" or "Suspicious" or "Phishing"
-        && f.Reasons is { Count: <= 12 } && f.Brands is { Count: <= 12 } && (f.Excerpt?.Length ?? 0) <= 2000;
+        && f.Reasons is { Count: <= 12 } && f.Brands is { Count: <= 12 } && (f.OwnBrands?.Count ?? 0) <= 12 && (f.Excerpt?.Length ?? 0) <= 2000;
 
     private static bool SafeAuthorize(Func<int, bool> authorize, int pid)
     {

@@ -94,7 +94,7 @@ CoreGuard.sln
 - ✅ **Gestionnaire de mots de passe** : page « Coffre-fort » (Argon2id + AES-256-GCM, générateur, verrouillage auto), auto-remplissage par l'extension sans presse-papiers, refusé à tout programme qui n'est pas lancé par un navigateur signé
 - 🟡 **Mode Paranoïa** (interrupteur sans action réelle)
 - ✅ **Anti-phishing** : base de confiance **locale** (100 000 domaines Tranco, Public Suffix List, liste noire OpenPhish, mise à jour optionnelle désactivée par défaut), règles d'URL (homographes, typosquatting, IP, marque en sous-domaine, http), page d'interception « CoreGuard n'aime pas ce site » et fenêtre « CoreGuard doute de ce site » ; seul l'utilisateur peut déclarer un site de confiance, confirmé dans CoreGuard ; installation : `./scripts/install-browser-extension.ps1`
-- ✅ **Anti-phishing visuel + IA** : OCR (`Windows.Media.Ocr`) + QR (quishing) dès qu'un mot de passe est demandé sur un site non connu, puis revue de la zone grise par l'**IA locale** (Llama 3.2 3B), qui ne peut qu'aggraver le verdict ; mesure chiffrée : `dotnet run --project demo/10-phishing-ia/eval`
+- ✅ **Anti-phishing visuel + IA** : OCR (`Windows.Media.Ocr`) + QR (quishing) dès qu'un mot de passe est demandé sur un site non connu, puis revue de la zone grise par l'**IA locale** (Llama 3.2 3B), qui ne peut qu'aggraver le verdict, et seulement sur indice objectif (marque usurpée, données sensibles) ; mesure sur 19 cas : règles seules 9/11 arnaques, règles + IA 11/11, 0 fausse alerte (`dotnet run --project demo/10-phishing-ia/eval`)
 
 ---
 
@@ -146,7 +146,7 @@ dotnet run --project AntivirusIA.UI
 dotnet test AntivirusIA.slnx
 ```
 
-430 tests MSTest (moteurs, quarantaine, règles, comportement, réseau, réponse, IPC, service, fournisseur AMSI natif, vie privée, coffre, extension). Procédure de test manuelle : [`docs/TESTING.md`](docs/TESTING.md).
+434 tests MSTest (moteurs, quarantaine, règles, comportement, réseau, réponse, IPC, service, fournisseur AMSI natif, vie privée, coffre, extension). Procédure de test manuelle : [`docs/TESTING.md`](docs/TESTING.md).
 
 ---
 

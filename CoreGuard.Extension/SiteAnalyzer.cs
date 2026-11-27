@@ -9,7 +9,8 @@ public sealed record SiteDecision(
     bool NeedsCapture,
     bool NeedsReview,
     IReadOnlyList<string> Brands,
-    bool LoginPage);
+    bool LoginPage,
+    IReadOnlyList<string>? OwnBrands = null);
 
 /// <summary>
 /// Cascade de décision anti-phishing, de la plus rapide à la plus coûteuse (logique pure, testable) :
@@ -43,7 +44,7 @@ public sealed class SiteAnalyzer(TrustBase trust)
             case SiteTrust.UserTrusted:
                 return new SiteDecision(PhishingVerdict.Safe, ["Site déclaré de confiance par vous dans CoreGuard."], domain, level, false, false, [], hasPassword);
             case SiteTrust.Blocklisted:
-                return new SiteDecision(PhishingVerdict.Phishing, ["Adresse signalée comme site de phishing (liste OpenPhish)."], domain, level, false, false, [], hasPassword);
+                return new SiteDecision(PhishingVerdict.Phishing, ["Adresse en liste noire de phishing (OpenPhish ou votre liste personnelle)."], domain, level, false, false, [], hasPassword);
             case SiteTrust.Known:
                 return new SiteDecision(PhishingVerdict.Safe, ["Site connu (parmi les 100 000 domaines les plus visités)."], domain, level, false, false, [], hasPassword);
         }
@@ -71,16 +72,21 @@ public sealed class SiteAnalyzer(TrustBase trust)
     public SiteDecision CheckPage(string? url, string ocrText, bool hasPassword)
     {
         var nav = CheckNavigation(url, hasPassword);
-        var brands = PhishingLogic.FindBrandsInText(ocrText ?? string.Empty);
+        // Marques affichées : « étrangères » au domaine (indice d'usurpation) ou propres au domaine (page officielle)
+        var cited = PhishingLogic.FindBrandsInText(ocrText ?? string.Empty);
+        var own = cited.Where(b => PhishingLogic.IsLegitimateDomainForBrand(b, nav.Domain)).ToList();
+        var brands = cited.Except(own).ToList();
         bool login = hasPassword || PhishingLogic.LooksLikeLoginPage(ocrText ?? string.Empty);
         if (nav.Trust is SiteTrust.UserTrusted or SiteTrust.Blocklisted or SiteTrust.Known || nav.Domain.Length == 0)
-            return nav with { Brands = brands, LoginPage = login, NeedsCapture = false };
+            return nav with { Brands = brands, OwnBrands = own, LoginPage = login, NeedsCapture = false };
 
         var text = PhishingLogic.Assess(ocrText ?? string.Empty, url, hasPassword);
         var verdict = text.Verdict > nav.Verdict ? text.Verdict : nav.Verdict;
         var reasons = nav.Reasons.Concat(text.Reasons).Distinct().ToList();
-        bool review = login || brands.Count > 0 || verdict != PhishingVerdict.Safe;
-        return new SiteDecision(verdict, reasons, nav.Domain, nav.Trust, false, review, brands, login);
+        // Revue par l'IA seulement s'il y a matière à aggraver (marque usurpée, données sensibles) ou un verdict à expliquer :
+        // une page sans marque qui demande juste un identifiant n'est pas soumise au modèle
+        bool review = own.Count == 0 && (brands.Count > 0 || CoreGuard.Ipc.SiteReview.HasSensitiveRequest(ocrText) || verdict != PhishingVerdict.Safe);
+        return new SiteDecision(verdict, reasons, nav.Domain, nav.Trust, false, review, brands, login, own);
     }
 
     /// <summary>Extrait borné du texte de la page, transmis à l'IA (sans caractères de contrôle).</summary>

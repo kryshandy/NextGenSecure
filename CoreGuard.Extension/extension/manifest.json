@@ -27,6 +27,12 @@
       "32": "icons/icon32.png"
     }
   },
+  "commands": {
+    "analyser-page": {
+      "suggested_key": { "default": "Ctrl+Shift+Y" },
+      "description": "Analyser cette page (OCR + IA locale)"
+    }
+  },
   "background": {
     "service_worker": "background.js"
   },

@@ -52,12 +52,64 @@ public static class SiteReview
         // Lecture tolérante : on ne retient que les mots-clés aggravants (un faux « sûr » ne changerait rien de toute façon)
         string lower = answer.ToLowerInvariant();
         string? verdict = lower.Contains("arnaque") ? "Phishing" : lower.Contains("doute") ? "Suspicious" : null;
-        return (verdict, Clean(answer.Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()));
+        return (verdict, Clean(BestSentence(answer)));
+    }
+
+    // Réponse libre : la première ligne qui ressemble à une explication (au moins 6 mots, sans l'étiquette du verdict)
+    private static string? BestSentence(string answer)
+    {
+        var lines = answer.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(l => l.Trim('"', '*', '-', ' '))
+            .Select(l => l.StartsWith("raison", StringComparison.OrdinalIgnoreCase) && l.Contains(':') ? l[(l.IndexOf(':') + 1)..].Trim() : l)
+            .Where(l => l.Length > 0)
+            .ToList();
+        return lines.FirstOrDefault(l => l.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length >= 6) ?? lines.FirstOrDefault();
     }
 
     /// <summary>Verdict final : le plus grave des deux. L'IA ne peut jamais rendre un site plus « sûr » que les règles.</summary>
     public static string Merge(string rulesVerdict, string? aiVerdict) =>
         aiVerdict is not null && Rank(aiVerdict) > Rank(rulesVerdict) ? aiVerdict : rulesVerdict;
+
+    /// <summary>
+    /// Données sensibles dont la demande est un indice objectif (texte normalisé : minuscules, sans accents).
+    /// Un simple « identifiant / mot de passe » n'en fait pas partie : beaucoup de sites honnêtes le demandent.
+    /// </summary>
+    private static readonly string[] SensitiveTerms =
+    [
+        "carte bancaire", "numero de carte", "card number", "cryptogramme", "cvv", "cvc", "date d'expiration", "expiration date",
+        "code secret", "code pin", "votre pin", "code confidentiel", "phrase de recuperation", "recovery phrase", "seed phrase",
+        "cle privee", "private key", "iban", "rib", "code de verification", "code recu par sms", "numero de securite sociale",
+        "numero fiscal"
+    ];
+
+    /// <summary>La page réclame-t-elle des données sensibles (carte, codes, phrase de récupération…) ?</summary>
+    public static bool HasSensitiveRequest(string? text)
+    {
+        if (string.IsNullOrEmpty(text)) return false;
+        string t = RemoveAccents(text).ToLowerInvariant();
+        return SensitiveTerms.Any(term => t.Contains(term, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// L'IA n'est autorisée à aggraver que sur indice objectif : une marque affichée sur un domaine qui n'est pas le sien,
+    /// ou une demande de données sensibles. Une page qui affiche la marque de son propre domaine (Orange sur orange.cm)
+    /// ne peut pas être accusée par l'IA seule. Évite les « arnaque » réflexes d'un petit modèle sur les petits sites honnêtes.
+    /// </summary>
+    public static bool AiMayAggravate(SiteFacts f) =>
+        (f.OwnBrands is null || f.OwnBrands.Count == 0) && (f.Brands.Count > 0 || HasSensitiveRequest(f.Excerpt));
+
+    /// <summary>Verdict final après revue : l'avis de l'IA ne compte que s'il est autorisé à aggraver, et jamais pour rassurer.</summary>
+    public static string Decide(SiteFacts f, string? aiVerdict) =>
+        AiMayAggravate(f) ? Merge(f.Verdict, aiVerdict) : f.Verdict;
+
+    private static string RemoveAccents(string text)
+    {
+        var sb = new System.Text.StringBuilder(text.Length);
+        foreach (char c in text.Normalize(System.Text.NormalizationForm.FormD))
+            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark)
+                sb.Append(c == '’' ? '\'' : c);
+        return sb.ToString();
+    }
 
     public static int Rank(string verdict) => verdict switch { "Phishing" => 2, "Suspicious" => 1, _ => 0 };
 

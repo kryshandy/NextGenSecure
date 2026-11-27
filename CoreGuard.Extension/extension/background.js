@@ -121,6 +121,14 @@ async function choixUtilisateur(tabId, choix) {
   return { ok: false, message: "Choix inconnu." };
 }
 
+// Raccourci Ctrl+Shift+Y : analyse à la demande de l'onglet actif (pages « image seule », doute de l'utilisateur)
+chrome.commands.onCommand.addListener((commande) => {
+  if (commande !== "analyser-page") return;
+  chrome.tabs.query({ active: true, currentWindow: true })
+    .then(([tab]) => (tab && /^https?:/.test(tab.url || "") ? analyserOnglet(tab) : null))
+    .catch((e) => console.warn("CoreGuard :", e.message));
+});
+
 // Vérification dès le début du chargement : l'interception arrive avant toute saisie
 chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
   if (info.status !== "loading" || !tab.url || tab.url.startsWith(PAGE_BLOCAGE)) return;
