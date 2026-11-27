@@ -1,4 +1,4 @@
-using System.Runtime.InteropServices.WindowsRuntime;
+﻿using System.Runtime.InteropServices.WindowsRuntime;
 using Windows.Graphics.Imaging;
 using Windows.Media.Ocr;
 using Windows.Storage.Streams;
@@ -49,6 +49,17 @@ public sealed class OcrPhishingAnalyzer
 
         ct.ThrowIfCancellationRequested();
         return new CaptureAnalysis(verdict, raisons, texte, urlQr);
+    }
+
+    /// <summary>Lit seulement la capture : texte (OCR) et URL d'un éventuel QR code. La décision revient à l'appelant.</summary>
+    public async Task<(string Text, string? QrUrl)> ReadAsync(byte[] imageBytes, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(imageBytes);
+        using var bitmap = await DecodeAsync(imageBytes).ConfigureAwait(false);
+        var texte = await ExtractTextAsync(bitmap).ConfigureAwait(false);
+        var urlQr = QrCodeScanner.DecodeUrl(CopyBgra(bitmap), bitmap.PixelWidth, bitmap.PixelHeight);
+        ct.ThrowIfCancellationRequested();
+        return (texte, urlQr);
     }
 
     // Décode l'image en bitmap BGRA8 (format attendu par l'OCR et ZXing).

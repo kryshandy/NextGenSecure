@@ -24,6 +24,8 @@
     <None Include="extension\**" CopyToOutputDirectory="PreserveNewest" LinkBase="extension" />
     <None Include="com.coreguard.host.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="INSTALL.txt" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Base de confiance anti-phishing : Tranco (100 000 domaines), Public Suffix List, liste noire OpenPhish -->
+    <None Include="Data/**" CopyToOutputDirectory="PreserveNewest" LinkBase="Data" />
   </ItemGroup>
 
 </Project>

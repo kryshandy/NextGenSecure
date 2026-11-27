@@ -70,7 +70,11 @@ public partial class App : Application
         _ = _services.GetRequiredService<ProtectionService>().ApplyAsync();
         // Lien avec le service SYSTEM : s'il répond, il reprend la télémétrie ETW (sinon fonctionnement autonome)
         _services.GetRequiredService<ServiceLink>().Start();
-        _services.GetRequiredService<VaultService>().StartBroker();
+        var phishing = _services.GetRequiredService<PhishingReviewService>();
+        var vault = _services.GetRequiredService<VaultService>();
+        vault.SiteHandlers = phishing.Handlers; // verdicts du navigateur, revue par l'IA, confiance de l'utilisateur
+        vault.StartBroker();
+        phishing.Start();
         // Verrouillage d'urgence : l'écran apparaît dès que le service annonce un verrouillage (même après redémarrage)
         _services.GetRequiredService<LockdownUiController>().Start();
         _ = _services.GetRequiredService<QuarantineViewModel>().OnNavigatedToAsync();
@@ -134,6 +138,7 @@ public partial class App : Application
         services.AddSingleton<LockdownUiController>();
         services.AddSingleton<PersistencePromptService>();
         services.AddSingleton<BackgroundHost>();
+        services.AddSingleton<PhishingReviewService>();
         // Gestionnaire de mots de passe (coffre local) + canal d'auto-remplissage pour l'extension
         services.AddSingleton(sp => new VaultService(dataDir, sp.GetRequiredService<AlertHub>()));
         services.AddSingleton<ProtectionService>();

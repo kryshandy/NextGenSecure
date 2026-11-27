@@ -12,6 +12,13 @@ pour chaque navigateur (HKCU\...\NativeMessagingHosts\com.coreguard.host).
 Puis, une seule fois par navigateur : chrome://extensions > Mode developpeur > "Charger l'extension non
 empaquetee" > dossier CoreGuard.Extension\extension. L'ID est fixe (cle publique dans manifest.json).
 
+Base de confiance anti-phishing : Data\ (100 000 domaines Tranco, Public Suffix List, liste noire OpenPhish) est
+publiee avec l'hote. Fichiers de l'utilisateur dans %LOCALAPPDATA%\CoreGuard\phishing\ : trusted-sites.txt (sites
+declares de confiance, confirmes dans CoreGuard), blocklist-local.txt (liste noire personnelle),
+blocklist-update.txt (mise a jour optionnelle, Reglages > Anti-phishing).
+
+Apres une mise a jour de CoreGuard : relancer le script d'installation, puis recharger l'extension.
+
 Desinstallation : ./scripts/install-browser-extension.ps1 -Uninstall
 
 Securite : l'hote ne fait confiance a aucune donnee venant de l'extension ou de la page (taille bornee, JSON

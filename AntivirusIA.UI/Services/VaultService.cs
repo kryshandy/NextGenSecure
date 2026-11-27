@@ -1,4 +1,4 @@
-using System.Security.AccessControl;
+﻿using System.Security.AccessControl;
 using System.Security.Principal;
 using AntivirusIA.Engines;
 using CoreGuard.Ipc;
@@ -45,7 +45,10 @@ public sealed class VaultService : IDisposable
 
     /// <summary>Démarre le canal d'auto-remplissage pour l'extension (répond « verrouillé » tant que le coffre l'est).</summary>
     public void StartBroker() =>
-        _ = Task.Run(() => VaultBroker.ServeAsync(LookupAsync, AuthorizeClient, _cts.Token));
+        _ = Task.Run(() => VaultBroker.ServeAsync(LookupAsync, AuthorizeClient, _cts.Token, sites: SiteHandlers));
+
+    /// <summary>Anti-phishing servi par le même canal (journal, revue par l'IA, confiance), même contrôle du client.</summary>
+    public SiteHandlers? SiteHandlers { get; set; }
 
     public async Task CreateAsync(string masterPassword)
     {

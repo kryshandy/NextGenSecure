@@ -27,6 +27,18 @@ chrome.runtime.sendMessage({ type: "popupState" }, (reponse) => {
   if (reponse) afficher(reponse.etat, reponse.url);
 });
 
+// Analyse à la demande : utile pour les pages « image seule » sans champ mot de passe (spécimen 06)
+document.getElementById("analyser").addEventListener("click", () => {
+  const bouton = document.getElementById("analyser");
+  bouton.disabled = true;
+  document.getElementById("message").textContent = "Capture et analyse en cours…";
+  chrome.runtime.sendMessage({ type: "popupAnalyze" }, (reponse) => {
+    bouton.disabled = false;
+    if (reponse && reponse.etat) afficher(reponse.etat, reponse.url);
+    document.getElementById("message").textContent = reponse ? reponse.message : "Pas de réponse.";
+  });
+});
+
 document.getElementById("remplir").addEventListener("click", () => {
   const bouton = document.getElementById("remplir");
   bouton.disabled = true;

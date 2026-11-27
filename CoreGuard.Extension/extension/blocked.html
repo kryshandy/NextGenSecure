@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>CoreGuard - site bloqué</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'">
+  <link rel="stylesheet" href="blocked.css">
+</head>
+<body>
+  <main>
+    <div class="icone">!</div>
+    <h1>CoreGuard n'aime pas ce site</h1>
+    <p class="sous">Il ressemble à une <strong>arnaque (phishing)</strong> : il pourrait voler vos mots de passe, vos codes ou votre argent.</p>
+    <p class="url" id="url"></p>
+    <h2>Pourquoi ?</h2>
+    <ul id="raisons"></ul>
+    <div class="ia" id="ia" hidden><b>Avis de l'IA locale de CoreGuard</b><span id="iaTexte"></span></div>
+    <p class="msg" id="msg"></p>
+    <div class="actions">
+      <button id="quitter" class="principal">Quitter ce site (recommandé)</button>
+      <button id="confiance">Je fais confiance à ce site</button>
+      <button id="continuer" class="lien">Continuer quand même (déconseillé)</button>
+    </div>
+    <p class="pied">Analyse 100 % locale. Seul vous pouvez déclarer un site de confiance, et CoreGuard vous le fera confirmer.</p>
+  </main>
+  <script src="blocked.js"></script>
+</body>
+</html>

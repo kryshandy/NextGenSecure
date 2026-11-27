@@ -1,4 +1,4 @@
-using System.IO.Pipes;
+﻿using System.IO.Pipes;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Principal;
@@ -15,7 +15,50 @@ public sealed record CredentialLookup(bool Found, string? Username, string? Pass
     public static readonly CredentialLookup AccessDenied = new(false, null, null, false, Denied: true);
 }
 
-internal sealed record VaultRequest(string Type, string? Url);
+internal sealed record VaultRequest(string Type, string? Url, SiteFacts? Facts = null);
+
+/// <summary>
+/// Faits transmis par l'hôte du navigateur à l'application pour un site (rapport, revue par l'IA, confiance).
+/// Données NON FIABLES (texte lu dans la page) : bornées et jamais interprétées comme des instructions.
+/// </summary>
+public sealed record SiteFacts(
+    string Url,
+    string Domain,
+    string Verdict,
+    IReadOnlyList<string> Reasons,
+    IReadOnlyList<string> Brands,
+    bool LoginPage,
+    bool KnownDomain,
+    string Excerpt);
+
+/// <summary>Réponse de l'application : verdict final (jamais plus clément que celui des règles), explication de l'IA.</summary>
+public sealed record SiteReply(string Verdict, string? Explanation, bool AiUsed, bool Accepted, bool Denied = false, bool Unavailable = false)
+{
+    public static readonly SiteReply AccessDenied = new("Safe", null, false, false, Denied: true);
+    public static SiteReply NotReachable(string verdict) => new(verdict, null, false, false, Unavailable: true);
+}
+
+/// <summary>Traitements côté application des demandes anti-phishing.</summary>
+public sealed record SiteHandlers(
+    Func<SiteFacts, Task> Report,
+    Func<SiteFacts, Task<SiteReply>> Review,
+    Func<SiteFacts, Task<SiteReply>> Trust);
+
+/// <summary>Fichiers partagés entre l'application et l'hôte du navigateur (dossier de l'utilisateur).</summary>
+public static class PhishingFiles
+{
+    public static string Directory => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CoreGuard", "phishing");
+
+    /// <summary>Domaines que l'utilisateur a explicitement déclarés de confiance (un par ligne).</summary>
+    public static string TrustedSites => Path.Combine(Directory, "trusted-sites.txt");
+
+    /// <summary>Liste noire personnelle (adresses ajoutées par l'utilisateur ou par une démonstration).</summary>
+    public static string LocalBlocklist => Path.Combine(Directory, "blocklist-local.txt");
+
+    /// <summary>Liste noire téléchargée (mise à jour optionnelle, désactivée par défaut).</summary>
+    public static string BlocklistUpdate => Path.Combine(Directory, "blocklist-update.txt");
+}
 
 /// <summary>
 /// Canal entre l'interface (qui détient le coffre déverrouillé) et l'hôte Native Messaging du navigateur.
@@ -24,6 +67,8 @@ internal sealed record VaultRequest(string Type, string? Url);
 ///   <c>authorize</c> : l'interface n'accepte que l'hôte CoreGuard lancé par un navigateur signé. Un programme
 ///   malveillant du même utilisateur qui se connecterait directement reçoit « refusé ».
 /// - Une seule demande par connexion, trames bornées (16 Ko).
+/// - Le même canal porte l'anti-phishing (étape 11) : « report » (verdict à journaliser), « review » (revue par
+///   l'IA locale, qui ne peut qu'aggraver) et « trust » (l'utilisateur confirme dans CoreGuard qu'il fait confiance).
 /// </summary>
 public static partial class VaultBroker
 {
@@ -39,7 +84,7 @@ public static partial class VaultBroker
     /// <paramref name="authorize"/> reçoit le PID du client et décide s'il a le droit de demander.
     /// </summary>
     public static async Task ServeAsync(Func<string, Task<CredentialLookup>> lookup, Func<int, bool> authorize,
-        CancellationToken ct, string? pipeName = null)
+        CancellationToken ct, string? pipeName = null, SiteHandlers? sites = null)
     {
         string name = pipeName ?? PipeName;
         var security = new PipeSecurity();
@@ -73,12 +118,12 @@ public static partial class VaultBroker
                 continue;
             }
 
-            _ = Task.Run(() => HandleAsync(pipe, lookup, authorize, ct), ct);
+            _ = Task.Run(() => HandleAsync(pipe, lookup, authorize, sites, ct), ct);
         }
     }
 
     private static async Task HandleAsync(NamedPipeServerStream pipe, Func<string, Task<CredentialLookup>> lookup,
-        Func<int, bool> authorize, CancellationToken ct)
+        Func<int, bool> authorize, SiteHandlers? sites, CancellationToken ct)
     {
         await using (pipe)
         {
@@ -90,20 +135,28 @@ public static partial class VaultBroker
                 byte[]? body = await ReadFrameAsync(pipe, timeout.Token).ConfigureAwait(false);
                 if (body is null) return;
 
-                CredentialLookup result;
                 bool allowed = GetNamedPipeClientProcessId(pipe.SafePipeHandle, out uint pid) && SafeAuthorize(authorize, (int)pid);
-                if (!allowed)
+                var request = JsonSerializer.Deserialize<VaultRequest>(body, IpcContract.Json);
+                byte[] reply;
+                if (request?.Type is "report" or "review" or "trust")
                 {
-                    result = CredentialLookup.AccessDenied;
+                    // Revue par l'IA et confirmation de l'utilisateur : plus longues que la recherche d'identifiant
+                    timeout.CancelAfter(request.Type == "trust" ? TimeSpan.FromMinutes(2) : TimeSpan.FromSeconds(60));
+                    SiteReply site = !allowed ? SiteReply.AccessDenied
+                        : sites is null || request.Facts is not { } facts || !IsBounded(facts) ? SiteReply.NotReachable("Safe")
+                        : request.Type == "report" ? await ReportAsync(sites, facts).ConfigureAwait(false)
+                        : request.Type == "review" ? await sites.Review(facts).ConfigureAwait(false)
+                        : await sites.Trust(facts).ConfigureAwait(false);
+                    reply = JsonSerializer.SerializeToUtf8Bytes(site, IpcContract.Json);
                 }
                 else
                 {
-                    var request = JsonSerializer.Deserialize<VaultRequest>(body, IpcContract.Json);
-                    result = request is { Type: "find", Url: { Length: > 0 and < 2048 } url }
-                        ? await lookup(url).ConfigureAwait(false)
+                    CredentialLookup result = !allowed ? CredentialLookup.AccessDenied
+                        : request is { Type: "find", Url: { Length: > 0 and < 2048 } url } ? await lookup(url).ConfigureAwait(false)
                         : CredentialLookup.NotFound;
+                    reply = JsonSerializer.SerializeToUtf8Bytes(result, IpcContract.Json);
                 }
-                await WriteFrameAsync(pipe, JsonSerializer.SerializeToUtf8Bytes(result, IpcContract.Json), timeout.Token).ConfigureAwait(false);
+                await WriteFrameAsync(pipe, reply, timeout.Token).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is IOException or JsonException or OperationCanceledException or ObjectDisposedException)
             {
@@ -111,6 +164,17 @@ public static partial class VaultBroker
             }
         }
     }
+
+    private static async Task<SiteReply> ReportAsync(SiteHandlers sites, SiteFacts facts)
+    {
+        await sites.Report(facts).ConfigureAwait(false);
+        return new SiteReply(facts.Verdict, null, false, true);
+    }
+
+    // Faits bornés : la trame de 16 Ko le garantit en partie, on borne aussi chaque champ
+    private static bool IsBounded(SiteFacts f) =>
+        f.Url is { Length: > 0 and < 2048 } && f.Domain is { Length: > 0 and < 256 } && f.Verdict is "Safe" or "Suspicious" or "Phishing"
+        && f.Reasons is { Count: <= 12 } && f.Brands is { Count: <= 12 } && (f.Excerpt?.Length ?? 0) <= 2000;
 
     private static bool SafeAuthorize(Func<int, bool> authorize, int pid)
     {
@@ -135,6 +199,27 @@ public static partial class VaultBroker
         catch (Exception ex) when (ex is TimeoutException or IOException or UnauthorizedAccessException or JsonException)
         {
             return CredentialLookup.VaultLocked;
+        }
+    }
+
+    /// <summary>Envoie des faits sur un site à l'application. Application fermée → réponse « injoignable ».</summary>
+    public static async Task<SiteReply> SendSiteAsync(string type, SiteFacts facts, TimeSpan wait, CancellationToken ct = default,
+        string? pipeName = null)
+    {
+        await using var pipe = new NamedPipeClientStream(".", pipeName ?? PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(wait);
+            await pipe.ConnectAsync(TimeSpan.FromMilliseconds(500), timeout.Token).ConfigureAwait(false);
+            await WriteFrameAsync(pipe, JsonSerializer.SerializeToUtf8Bytes(new VaultRequest(type, facts.Url, facts), IpcContract.Json), timeout.Token).ConfigureAwait(false);
+            byte[]? body = await ReadFrameAsync(pipe, timeout.Token).ConfigureAwait(false);
+            return body is null ? SiteReply.NotReachable(facts.Verdict)
+                : JsonSerializer.Deserialize<SiteReply>(body, IpcContract.Json) ?? SiteReply.NotReachable(facts.Verdict);
+        }
+        catch (Exception ex) when (ex is TimeoutException or IOException or UnauthorizedAccessException or JsonException or OperationCanceledException)
+        {
+            return SiteReply.NotReachable(facts.Verdict);
         }
     }
 

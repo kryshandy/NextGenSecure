@@ -171,7 +171,7 @@
                             <ctl:SettingRow Title="Comportement des processus (ETW)" Description="Nécessite les droits administrateur.">
                                 <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding Settings.BehaviorEnabled}" AutomationProperties.Name="Comportement des processus"/>
                             </ctl:SettingRow>
-                            <ctl:SettingRow Title="Persistance" Description="Surveille les clés Run, les tâches planifiées et les services.">
+                            <ctl:SettingRow Title="Persistance" Description="Clés Run, tâches planifiées, dossier Démarrage et services : fenêtre Autoriser / Bloquer pour chaque nouvelle entrée.">
                                 <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding Settings.PersistenceEnabled}" AutomationProperties.Name="Persistance"/>
                             </ctl:SettingRow>
                             <ctl:SettingRow Title="Garde du presse-papiers" Description="Détecte le remplacement d'adresses crypto et efface les secrets copiés.">
@@ -191,6 +191,26 @@
                             </ctl:SettingRow>
                             <ctl:SettingRow Title="Mode paranoïa" Description="Politique de durcissement renforcée (USB, pare-feu, exécution depuis les dossiers utilisateur)." ShowSeparator="False">
                                 <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding Settings.ParanoiaEnabled}" AutomationProperties.Name="Mode paranoïa"/>
+                            </ctl:SettingRow>
+                        </StackPanel>
+                    </ctl:SectionCard>
+
+                    <!-- Anti-phishing -->
+                    <ctl:SectionCard Icon="{StaticResource Icon.Globe}" Title="Anti-phishing (extension navigateur)"
+                                     Subtitle="Base locale : 100 000 domaines connus, liste noire OpenPhish, IA locale qui peut seulement aggraver un verdict.">
+                        <StackPanel>
+                            <ctl:SettingRow Title="Mettre à jour la liste noire par Internet" Description="Télécharge le flux OpenPhish toutes les 12 h. Désactivé : l'instantané livré reste utilisé, sans aucun accès réseau.">
+                                <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding Settings.PhishingFeedUpdates}" AutomationProperties.Name="Mise à jour de la liste noire"/>
+                            </ctl:SettingRow>
+                            <Grid Margin="0,4,0,12">
+                                <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding FeedStatus}" Style="{StaticResource Text.Muted}" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                                <Button Grid.Column="1" Content="Mettre à jour maintenant" Style="{StaticResource Btn.Secondary}" MinHeight="32" Padding="12,4"
+                                        Margin="8,0,0,0" Command="{Binding UpdateFeedNowCommand}"/>
+                            </Grid>
+                            <ctl:SettingRow Title="Sites déclarés de confiance" Description="{Binding TrustedSitesText}" ShowSeparator="False">
+                                <Button Content="Tout retirer" Style="{StaticResource Btn.Secondary}" MinHeight="32" Padding="12,4"
+                                        Command="{Binding ClearTrustedSitesCommand}" IsEnabled="{Binding HasTrustedSites}"/>
                             </ctl:SettingRow>
                         </StackPanel>
                     </ctl:SectionCard>

@@ -121,8 +121,9 @@ Ces spécimens s'exécutent (côté « attaque »), mais la **capture automatiqu
 - **Statut : ⚠️ nécessite admin** — logique testée (10 tests) ; pas encore de page UI dédiée (pilotable par code/au branchement service).
 
 ### US-15 — Phishing visuel par OCR (extension navigateur)
-- **Comment tester :** `./demo/06-phishing-visuel/serve-phishing-demo.ps1` puis ouvrir `http://localhost:8080`. Nécessite de **charger l'extension** (`CoreGuard.Extension/extension/`) dans Chrome/Edge et d'enregistrer l'**hôte Native Messaging** (voir `CoreGuard.Extension/INSTALL.txt`).
-- **Statut : ⚠️ câblage requis** — logique OCR/typosquatting/homographes testée (38 tests) ; l'extension doit être installée et l'hôte enregistré pour une démo de bout en bout.
+- **Mesure sans installation :** `dotnet run --project demo/10-phishing-ia/eval` (captures réelles des pages de labo, OCR, base de confiance, IA locale) → précision / rappel avec et sans IA, détail dans `demo/10-phishing-ia/resultats.md`.
+- **En direct :** `./scripts/install-browser-extension.ps1`, charger l'extension (`CoreGuard.Extension/extension/`), ouvrir CoreGuard, lancer `./demo/10-phishing-ia/serve-phishing-lab.ps1` et suivre `demo/10-phishing-ia/README.md` (interception, « doute », avis de l'IA, liste noire, confiance confirmée dans CoreGuard). Page « image seule » : `./demo/06-phishing-visuel/serve-phishing-demo.ps1` puis bouton « Analyser cette page » de l'extension.
+- **Statut : ✅ actif** — 73 tests extension (dont base de confiance réelle et cascade) + 11 tests de revue/relais (Ipc).
 
 ### US-16 — BadUSB (frappe HID anormale)
 - **Comment tester :** `dotnet run --project .\demo\04-badusb-hid` (frappe ~1500 car/s dans sa propre fenêtre ; `Échap` pour arrêter).
@@ -154,7 +155,8 @@ Depuis la racine du dépôt. Détails complets : `demo/README.md`.
 | `03-persistance` | `./demo/03-persistance/demo-persistance.ps1` | clé Run + tâche + fichier Démarrage | ✅ actif | **`-Nettoyer` obligatoire** |
 | `04-badusb-hid` | `dotnet run --project .\demo\04-badusb-hid` | frappe HID rapide | 🔜 à venir | `Échap` / fermer |
 | `05-crypto-clipper` | `dotnet run --project .\demo\05-crypto-clipper` | presse-papiers | ✅ actif | `Ctrl+C` / 60 s |
-| `06-phishing-visuel` | `./demo/06-phishing-visuel/serve-phishing-demo.ps1` | OCR phishing | ⚠️ câblage extension | `Ctrl+C` / `/stop` |
+| `06-phishing-visuel` | `./demo/06-phishing-visuel/serve-phishing-demo.ps1` | OCR phishing (image seule) | ✅ bouton « Analyser cette page » | `Ctrl+C` / `/stop` |
+| `10-phishing-ia` | `dotnet run --project demo/10-phishing-ia/eval` ; `./demo/10-phishing-ia/serve-phishing-lab.ps1` | base de confiance, OCR, IA locale, liste noire | ✅ actif | `Ctrl+C` / `/stop` (entrée de liste noire retirée) |
 | `07-vol-identifiants` | `./demo/07-vol-identifiants/demo-infostealer.ps1` | accès `Login Data` | 🔜 à venir | `-Nettoyer` |
 
 Légende : ✅ actif · ⚠️ nécessite activation/câblage · 🔜 détecteur prévu en Phase 2.

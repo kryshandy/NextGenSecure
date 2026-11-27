@@ -1,0 +1,24 @@
+{
+  "description": "Corpus de démonstration anti-phishing CoreGuard. Chaque cas : une page de laboratoire (pages/) affichée sous une adresse. Les adresses en .localhost sont servies par serve-phishing-lab.ps1 ; les adresses réelles (paypal.com, ameli.fr…) ne sont jamais visitées par l'évaluation : seule la capture de la page de labo est analysée, comme si elle venait de cette adresse.",
+  "cases": [
+    { "url": "http://paypa1-verification.localhost:8088/paypal.html", "page": "paypal.html", "expected": "alerte", "note": "PayPal affiché sur un domaine tiers" },
+    { "url": "http://securite-compte-client.localhost:8088/paypal.html", "page": "paypal.html", "expected": "alerte", "note": "PayPal affiché, domaine neutre" },
+    { "url": "http://ameli-remboursement.localhost:8088/ameli.html", "page": "ameli.html", "expected": "alerte", "note": "typosquatting « ameli- »" },
+    { "url": "http://remboursement-sante.localhost:8088/ameli.html", "page": "ameli.html", "expected": "alerte", "note": "Assurance Maladie affichée, domaine neutre" },
+    { "url": "http://orange-money-cm.localhost:8088/orange-money.html", "page": "orange-money.html", "expected": "alerte", "note": "Orange Money, domaine tiers" },
+    { "url": "http://bonus-transfert.localhost:8088/mtn-momo.html", "page": "mtn-momo.html", "expected": "alerte", "note": "MTN MoMo, domaine neutre" },
+    { "url": "http://dgfip-remboursement.localhost:8088/impots.html", "page": "impots.html", "expected": "alerte", "note": "impots.gouv.fr affiché, domaine tiers" },
+    { "url": "http://netflix-paiement.localhost:8088/netflix.html", "page": "netflix.html", "expected": "alerte", "note": "typosquatting « netflix- »" },
+    { "url": "https://aide-remboursement.netlify.app/ameli.html", "page": "ameli.html", "expected": "alerte", "note": "hébergeur gratuit + marque" },
+    { "url": "http://suivi-colis-livraison.localhost:8088/colis.html", "page": "colis.html", "expected": "alerte", "note": "faux frais de colis, aucune marque connue (zone grise)" },
+    { "url": "http://bonus-portefeuille.localhost:8088/crypto.html", "page": "crypto.html", "expected": "alerte", "note": "arnaque crypto (phrase de récupération), aucune marque (zone grise)" },
+    { "url": "https://www.paypal.com/signin", "page": "paypal.html", "expected": "sur", "note": "vrai domaine PayPal" },
+    { "url": "https://www.ameli.fr/assure/compte", "page": "ameli.html", "expected": "sur", "note": "vrai domaine ameli" },
+    { "url": "https://www.orange.cm/fr/orange-money.html", "page": "orange-money.html", "expected": "sur", "note": "vrai domaine Orange Cameroun" },
+    { "url": "https://cfspart.impots.gouv.fr/LoginAccess", "page": "impots.html", "expected": "sur", "note": "vrai domaine impots.gouv.fr" },
+    { "url": "https://www.netflix.com/login", "page": "netflix.html", "expected": "sur", "note": "vrai domaine Netflix" },
+    { "url": "http://club-tennis-lilas.localhost:8088/club.html", "page": "club.html", "expected": "sur", "note": "petit site inconnu, sans marque" },
+    { "url": "http://atelier-ceramique-martin.localhost:8088/boutique.html", "page": "boutique.html", "expected": "sur", "note": "boutique inconnue, sans marque" },
+    { "url": "http://ape-ecole-jules-ferry.localhost:8088/association.html", "page": "association.html", "expected": "sur", "note": "association inconnue, sans marque" }
+  ]
+}

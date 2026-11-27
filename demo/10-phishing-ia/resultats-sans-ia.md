@@ -1,0 +1,27 @@
+# Résultats de l'évaluation anti-phishing CoreGuard
+
+Généré le 27/11/2026 08:03 par `dotnet run --project demo/10-phishing-ia/eval` -- --sans-ia. Analyse 100 % locale : captures réelles des pages de labo, OCR Windows, base de confiance livrée.
+
+- **Règles seules** : 9 arnaques détectées / 11, 0 fausse(s) alerte(s) / 8 sites sûrs — précision 100 %, rappel 82 %
+
+| Attendu | Règles | Final | Base | Adresse | Cas | Raisons des règles | Avis de l'IA | Durée |
+|---|---|---|---|---|---|---|---|---|
+| alerte | Phishing | **Phishing** | Unknown | `http://paypa1-verification.localhost:8088/paypal.html` | PayPal affiché sur un domaine tiers | Domaine absent de la base de confiance (site peu connu). ; La page évoque 'paypal' et demande une connexion mais le domaine est 'paypa1-verification.localhost'. | — | 0,5 s |
+| alerte | Phishing | **Phishing** | Unknown | `http://securite-compte-client.localhost:8088/paypal.html` | PayPal affiché, domaine neutre | Domaine absent de la base de confiance (site peu connu). ; La page évoque 'paypal' et demande une connexion mais le domaine est 'securite-compte-client.localhost'. | — | 0,1 s |
+| alerte | Phishing | **Phishing** | Unknown | `http://ameli-remboursement.localhost:8088/ameli.html` | typosquatting « ameli- » | Typosquatting probable de la marque 'ameli' (ameli-remboursement.localhost). ; Domaine absent de la base de confiance (site peu connu). ; La page évoque 'ameli' et demande une connexion mais le domaine est 'ameli-remboursement.localhost'. | — | 0,1 s |
+| alerte | Phishing | **Phishing** | Unknown | `http://remboursement-sante.localhost:8088/ameli.html` | Assurance Maladie affichée, domaine neutre | Domaine absent de la base de confiance (site peu connu). ; La page évoque 'ameli' et demande une connexion mais le domaine est 'remboursement-sante.localhost'. | — | 0,1 s |
+| alerte | Phishing | **Phishing** | Unknown | `http://orange-money-cm.localhost:8088/orange-money.html` | Orange Money, domaine tiers | Domaine absent de la base de confiance (site peu connu). ; La page évoque 'orange' et demande une connexion mais le domaine est 'orange-money-cm.localhost'. | — | 0,1 s |
+| alerte | Phishing | **Phishing** | Unknown | `http://bonus-transfert.localhost:8088/mtn-momo.html` | MTN MoMo, domaine neutre | Domaine absent de la base de confiance (site peu connu). ; La page évoque 'mtn' et demande une connexion mais le domaine est 'bonus-transfert.localhost'. | — | 0,1 s |
+| alerte | Phishing | **Phishing** | Unknown | `http://dgfip-remboursement.localhost:8088/impots.html` | impots.gouv.fr affiché, domaine tiers | Domaine absent de la base de confiance (site peu connu). ; La page évoque 'impots' et demande une connexion mais le domaine est 'dgfip-remboursement.localhost'. | — | 0,1 s |
+| alerte | Phishing | **Phishing** | Unknown | `http://netflix-paiement.localhost:8088/netflix.html` | typosquatting « netflix- » | Typosquatting probable de la marque 'netflix' (netflix-paiement.localhost). ; Domaine absent de la base de confiance (site peu connu). ; La page évoque 'netflix' et demande une connexion mais le domaine est 'netflix-paiement.localhost'. | — | 0,1 s |
+| alerte | Phishing | **Phishing** | ContentHost | `https://aide-remboursement.netlify.app/ameli.html` | hébergeur gratuit + marque | Page hébergée sur un service où n'importe qui peut publier : la réputation du service ne garantit rien. ; Un mot de passe est demandé sur une page d'hébergement gratuit. ; La page évoque 'ameli' et demande une connexion mais le domaine est 'aide-remboursement.netlify.app'. | — | 0,1 s |
+| alerte | Safe | **Safe** | Unknown | `http://suivi-colis-livraison.localhost:8088/colis.html` | faux frais de colis, aucune marque connue (zone grise) | Domaine absent de la base de confiance (site peu connu). | — | 0,1 s |
+| alerte | Safe | **Safe** | Unknown | `http://bonus-portefeuille.localhost:8088/crypto.html` | arnaque crypto (phrase de récupération), aucune marque (zone grise) | Domaine absent de la base de confiance (site peu connu). | — | 0,1 s |
+| sur | Safe | **Safe** | Known | `https://www.paypal.com/signin` | vrai domaine PayPal | Site connu (parmi les 100 000 domaines les plus visités). | non sollicitée | 0,0 s |
+| sur | Safe | **Safe** | Known | `https://www.ameli.fr/assure/compte` | vrai domaine ameli | Site connu (parmi les 100 000 domaines les plus visités). | non sollicitée | 0,0 s |
+| sur | Safe | **Safe** | Unknown | `https://www.orange.cm/fr/orange-money.html` | vrai domaine Orange Cameroun | Domaine absent de la base de confiance (site peu connu). | — | 0,1 s |
+| sur | Safe | **Safe** | Known | `https://cfspart.impots.gouv.fr/LoginAccess` | vrai domaine impots.gouv.fr | Site connu (parmi les 100 000 domaines les plus visités). | non sollicitée | 0,0 s |
+| sur | Safe | **Safe** | Known | `https://www.netflix.com/login` | vrai domaine Netflix | Site connu (parmi les 100 000 domaines les plus visités). | non sollicitée | 0,0 s |
+| sur | Safe | **Safe** | Unknown | `http://club-tennis-lilas.localhost:8088/club.html` | petit site inconnu, sans marque | Domaine absent de la base de confiance (site peu connu). | — | 0,1 s |
+| sur | Safe | **Safe** | Unknown | `http://atelier-ceramique-martin.localhost:8088/boutique.html` | boutique inconnue, sans marque | Domaine absent de la base de confiance (site peu connu). | — | 0,1 s |
+| sur | Safe | **Safe** | Unknown | `http://ape-ecole-jules-ferry.localhost:8088/association.html` | association inconnue, sans marque | Domaine absent de la base de confiance (site peu connu). | — | 0,1 s |

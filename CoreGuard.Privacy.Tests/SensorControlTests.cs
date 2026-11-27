@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using CoreGuard.Privacy;
 
 namespace CoreGuard.Privacy.Tests;
@@ -36,6 +36,9 @@ public sealed class SensorControlTests
         try
         {
             string path = Path.Combine(Environment.SystemDirectory, "PING.EXE"); // MainModule peut être null juste après le démarrage
+            // Juste après son démarrage, le chemin du processus n'est pas toujours lisible : on lui laisse 2 s
+            var deadline = DateTime.UtcNow.AddSeconds(2);
+            while (!SensorControl.FindProcessesByImage(path).Contains(ping.Id) && DateTime.UtcNow < deadline) Thread.Sleep(50);
             CollectionAssert.Contains(SensorControl.FindProcessesByImage(path).ToList(), ping.Id);
             Assert.AreEqual(0, SensorControl.FindProcessesByImage(@"C:\Ailleurs\PING.EXE").Count, "même nom, autre chemin : ignoré");
         }
@@ -56,6 +59,7 @@ public sealed class SensorControlTests
         var result = SensorControl.Cut(new SensorUsage("webcam", path, true, DateTime.UtcNow), pid =>
         {
             killed.Add(pid);
+            if (pid != ping.Id) return false; // n'arrête que le ping de ce test (les autres tests en lancent aussi, en parallèle)
             using var p = Process.GetProcessById(pid);
             p.Kill();
             return true;

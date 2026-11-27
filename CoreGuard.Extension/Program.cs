@@ -5,8 +5,21 @@
 using var entree = Console.OpenStandardInput();
 using var sortie = Console.OpenStandardOutput();
 
-// Identifiants : coffre CoreGuard via l'interface (refus si cet hôte n'a pas été lancé par un navigateur signé)
-var routeur = new HostRouter(new OcrPhishingAnalyzer(), new VaultCredentialProvider());
+// Base de confiance locale (domaines connus, suffixes publics, liste noire, sites de confiance de l'utilisateur)
+TrustBase confiance;
+try
+{
+    confiance = TrustBase.Load(Path.Combine(AppContext.BaseDirectory, "Data"));
+}
+catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+{
+    confiance = new TrustBase(PublicSuffixList.Parse([]), [], [], []); // base absente : règles seules
+}
+PhishingLogic.Suffixes = confiance.Suffixes;
+
+// Identifiants : coffre CoreGuard via l'interface (refus si cet hôte n'a pas été lancé par un navigateur signé).
+// Verdicts, revue par l'IA et confiance : relayés à l'application par le même canal.
+var routeur = new HostRouter(new OcrPhishingAnalyzer(), new VaultCredentialProvider(), new SiteAnalyzer(confiance), new PipeSiteRelay());
 
 while (true)
 {

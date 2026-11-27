@@ -35,58 +35,105 @@
 
   function signalerFormulaire() {
     if (dejaSignale || trouverChampsMotDePasse().length === 0) return;
+    // champ visible : le service worker vérifie l'URL avec le signal « mot de passe » puis capture la page
     dejaSignale = true;
     chrome.runtime.sendMessage({ type: "loginFormDetected" });
   }
 
-  // Bandeau d'alerte (une seule instance, mise à jour si le verdict s'aggrave)
-  let hoteBandeau = null;
-  function afficherBandeau(verdict, raisons) {
+  // Alerte (une seule instance, mise à jour si le verdict s'aggrave) :
+  //  - « doute » : fenêtre au centre de la page (Quitter / Je fais confiance / Continuer prudemment) ;
+  //  - « phishing » ouvert malgré la page d'interception : bandeau rouge permanent en haut.
+  // Les boutons n'acceptent que de vrais clics (event.isTrusted) : un script de la page ne peut pas choisir à la place
+  // de l'utilisateur ; et « Je fais confiance » doit encore être confirmé dans l'application CoreGuard.
+  let hoteAlerte = null;
+  function afficherAlerte(verdict, raisons, explication) {
     pageSuspecte = true;
-    if (!hoteBandeau) {
-      hoteBandeau = document.createElement("coreguard-alerte");
-      const racine = hoteBandeau.attachShadow({ mode: "closed" });
+    if (!hoteAlerte) {
+      hoteAlerte = document.createElement("coreguard-alerte");
+      const racine = hoteAlerte.attachShadow({ mode: "closed" });
       const style = document.createElement("style");
       style.textContent = `
-        .b { position: fixed; top: 0; left: 0; right: 0; z-index: 2147483647; font: 14px/1.4 "Segoe UI", system-ui, sans-serif;
-             color: #fff; padding: 12px 16px; display: flex; gap: 12px; align-items: flex-start; box-shadow: 0 2px 12px rgba(0,0,0,.35); }
-        .b.Phishing { background: #b42335; } .b.Suspicious { background: #9a5b00; }
-        .t { font-weight: 700; margin-bottom: 4px; } ul { margin: 0; padding-left: 18px; }
-        button { margin-left: auto; background: rgba(255,255,255,.18); color: #fff; border: 1px solid rgba(255,255,255,.5);
-                 border-radius: 6px; padding: 6px 12px; cursor: pointer; font: inherit; }`;
+        .fond { position: fixed; inset: 0; z-index: 2147483647; background: rgba(10,12,20,.55); display: flex;
+                align-items: center; justify-content: center; font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
+        .fond.bandeau { inset: 0 0 auto 0; background: none; display: block; }
+        .boite { width: min(520px, 92vw); background: #161a26; color: #e8ebf3; border-radius: 14px; padding: 22px 24px;
+                 box-shadow: 0 18px 50px rgba(0,0,0,.45); border-top: 5px solid #d68910; }
+        .bandeau .boite { width: auto; border-radius: 0; padding: 10px 16px; border-top: none; background: #b42335; color: #fff;
+                 display: flex; gap: 12px; align-items: center; box-shadow: 0 2px 12px rgba(0,0,0,.35); }
+        .Phishing .boite { border-top-color: #e5484d; }
+        .t { font-size: 18px; font-weight: 700; margin-bottom: 8px; } .bandeau .t { font-size: 14px; margin: 0; }
+        ul { margin: 6px 0 0; padding-left: 18px; color: #c5cad8; } .bandeau ul { display: none; }
+        .ia { margin-top: 12px; background: #1f2433; border-radius: 8px; padding: 10px 12px; }
+        .ia b { display: block; font-size: 12px; color: #9aa3b8; margin-bottom: 2px; } .bandeau .ia { display: none; }
+        .msg { margin-top: 10px; color: #ffb4b4; min-height: 1em; } .bandeau .msg { display: none; }
+        .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
+        .bandeau .actions { margin: 0 0 0 auto; }
+        button { border-radius: 8px; padding: 8px 14px; cursor: pointer; font: inherit; border: 1px solid #39405a;
+                 background: #232a3d; color: #e8ebf3; }
+        button.principal { background: #e5484d; border-color: #e5484d; color: #fff; font-weight: 600; }`;
+      const fond = document.createElement("div");
       const boite = document.createElement("div");
-      const texte = document.createElement("div");
+      boite.className = "boite";
       const titre = document.createElement("div");
       titre.className = "t";
       const liste = document.createElement("ul");
-      const fermer = document.createElement("button");
-      fermer.textContent = "J'ai compris";
-      fermer.addEventListener("click", () => { boite.style.display = "none"; });
-      texte.append(titre, liste);
-      boite.append(texte, fermer);
-      racine.append(style, boite);
-      hoteBandeau._parties = { boite, titre, liste };
-      document.documentElement.appendChild(hoteBandeau);
+      const ia = document.createElement("div");
+      ia.className = "ia";
+      const iaTitre = document.createElement("b");
+      iaTitre.textContent = "Avis de l'IA locale de CoreGuard";
+      const iaTexte = document.createElement("span");
+      ia.append(iaTitre, iaTexte);
+      const msg = document.createElement("div");
+      msg.className = "msg";
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      const bouton = (texte, classe, action) => {
+        const b = document.createElement("button");
+        b.textContent = texte;
+        if (classe) b.className = classe;
+        b.addEventListener("click", (e) => { if (e.isTrusted) action(); });
+        return b;
+      };
+      const choisir = (choix) => chrome.runtime.sendMessage({ type: "userChoice", choice: choix }, (r) => {
+        if (r && !r.ok && r.message) msg.textContent = r.message;
+      });
+      const quitter = bouton("Quitter la page", "principal", () => choisir("leave"));
+      const confiance = bouton("Je fais confiance à ce site", "", () => {
+        msg.textContent = "Confirmez dans la fenêtre CoreGuard…";
+        choisir("trust");
+      });
+      const continuer = bouton("Continuer prudemment", "", () => { fond.style.display = "none"; });
+      actions.append(continuer, confiance, quitter);
+      boite.append(titre, liste, ia, msg, actions);
+      fond.append(boite);
+      racine.append(style, fond);
+      hoteAlerte._parties = { fond, titre, liste, ia, iaTexte, continuer, confiance };
+      document.documentElement.appendChild(hoteAlerte);
     }
-    const { boite, titre, liste } = hoteBandeau._parties;
-    boite.className = "b " + verdict;
-    boite.style.display = "flex";
-    titre.textContent = verdict === "Phishing"
-      ? "CoreGuard : page de phishing probable — ne saisissez aucun mot de passe ni code"
-      : "CoreGuard : page suspecte — vérifiez l'adresse avant de saisir vos identifiants";
-    liste.textContent = "";
+    const p = hoteAlerte._parties;
+    const contourne = verdict === "Phishing";
+    p.fond.className = "fond " + verdict + (contourne ? " bandeau" : "");
+    p.fond.style.display = contourne ? "block" : "flex";
+    p.titre.textContent = contourne
+      ? "CoreGuard : site d'arnaque probable, ouvert malgré l'alerte — ne saisissez aucun mot de passe ni code"
+      : "CoreGuard doute de ce site";
+    p.continuer.textContent = contourne ? "Masquer" : "Continuer prudemment";
+    p.confiance.style.display = contourne ? "none" : "";
+    p.liste.textContent = "";
     for (const r of (raisons || []).slice(0, 4)) {
       const li = document.createElement("li");
       li.textContent = String(r);
-      liste.appendChild(li);
+      p.liste.appendChild(li);
     }
+    p.ia.style.display = explication && !contourne ? "block" : "none";
+    p.iaTexte.textContent = explication ? String(explication) : "";
   }
 
   chrome.runtime.onMessage.addListener((message, sender) => {
     if (sender.id !== chrome.runtime.id || !message) return;
 
     if (message.type === "warn" && (message.verdict === "Phishing" || message.verdict === "Suspicious")) {
-      afficherBandeau(message.verdict, message.reasons);
+      afficherAlerte(message.verdict, message.reasons, message.explanation);
       return;
     }
 
@@ -100,6 +147,8 @@
     }
   });
 
+  // Page rechargée après « Continuer » : l'état déjà connu est réaffiché
+  chrome.runtime.sendMessage({ type: "pageReady" });
   signalerFormulaire();
   new MutationObserver(signalerFormulaire).observe(document.documentElement, { childList: true, subtree: true });
 })();

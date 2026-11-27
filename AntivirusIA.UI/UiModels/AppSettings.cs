@@ -29,6 +29,9 @@ public sealed partial class AppSettings : ObservableObject
     [ObservableProperty] private bool _runInBackground = true;
     [ObservableProperty] private bool _startWithWindows = true;
 
+    // Anti-phishing : mise à jour de la liste noire par Internet (OpenPhish), désactivée par défaut
+    [ObservableProperty] private bool _phishingFeedUpdates;
+
     /// <summary>Entrées de démarrage autorisées par l'utilisateur (empreintes : on redemande si la commande change).</summary>
     public List<string> AllowedPersistence { get; set; } = [];
 

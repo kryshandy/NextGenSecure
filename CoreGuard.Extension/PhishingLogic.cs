@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 
 namespace CoreGuard.Extension;
@@ -39,8 +39,31 @@ public static class PhishingLogic
             ["labanquepostale"] = ["labanquepostale.fr"],
             ["hsbc"] = ["hsbc.com", "hsbc.fr"],
             ["chase"] = ["chase.com"],
-            ["wellsfargo"] = ["wellsfargo.com"]
+            ["wellsfargo"] = ["wellsfargo.com"],
+            // Marques retenues pour la démonstration (faciles à imiter sur une page de labo locale)
+            ["netflix"] = ["netflix.com"],
+            ["instagram"] = ["instagram.com"],
+            ["orange"] = ["orange.fr", "orange.com", "orange.cm", "orange.sn", "orange.ci", "orange.ma"],
+            ["mtn"] = ["mtn.com", "mtn.cm", "mtn.ci", "mtn.co.za", "mtn.ng", "mtn.com.gh"],
+            ["impots"] = ["impots.gouv.fr"],
+            ["ameli"] = ["ameli.fr"]
         };
+
+    /// <summary>
+    /// Marques qui sont aussi des mots courants : pas de détection de typosquatting sur le nom de domaine
+    /// (« pineapple-shop », « orangerie », « chasecycles » ne sont pas des imitations) ; la corrélation
+    /// texte affiché / formulaire de connexion / domaine reste active.
+    /// </summary>
+    private static readonly HashSet<string> CommonWordBrands = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "apple", "orange", "chase", "amazon", "mtn"
+    };
+
+    /// <summary>Marques dont une faute de frappe donne un mot courant : pas de distance d'édition, seulement « marque + mot ».</summary>
+    private static readonly HashSet<string> NoFuzzyBrands = new(StringComparer.OrdinalIgnoreCase) { "ameli", "impots" };
+
+    /// <summary>Public Suffix List chargée par l'hôte ; sans elle, approximation par une courte liste de suffixes.</summary>
+    public static PublicSuffixList? Suffixes { get; set; }
 
     /// <summary>Alias texte (tel qu'affiché à l'écran, normalisé) -> clé de marque.</summary>
     private static readonly (string Alias, string Brand)[] BrandAliases =
@@ -49,19 +72,26 @@ public static class PhishingLogic
         ("apple id", "apple"), ("icloud", "apple"), ("amazon", "amazon"), ("facebook", "facebook"),
         ("bnp paribas", "bnpparibas"), ("societe generale", "societegenerale"),
         ("credit agricole", "creditagricole"), ("la banque postale", "labanquepostale"),
-        ("hsbc", "hsbc"), ("chase", "chase"), ("wells fargo", "wellsfargo")
+        ("hsbc", "hsbc"), ("chase", "chase"), ("wells fargo", "wellsfargo"),
+        ("netflix", "netflix"), ("instagram", "instagram"),
+        ("orange money", "orange"), ("espace client orange", "orange"), ("mon compte orange", "orange"),
+        ("mtn mobile money", "mtn"), ("mtn momo", "mtn"), ("mymtn", "mtn"),
+        ("impots.gouv", "impots"), ("finances publiques", "impots"), ("impots gouv", "impots"),
+        ("ameli", "ameli"), ("assurance maladie", "ameli")
     ];
 
     private static readonly string[] LoginKeywords =
     [
         "sign in", "log in", "login", "password", "mot de passe", "connexion", "se connecter",
-        "identifiant", "verify your account", "verifiez votre compte"
+        "identifiant", "verify your account", "verifiez votre compte",
+        // Mobile money et banque : codes demandés au lieu d'un mot de passe
+        "code secret", "code pin", "code confidentiel", "code de verification", "code otp", "votre pin"
     ];
 
     /// <summary>Suffixes à deux niveaux courants (liste réduite, volontairement minimale).</summary>
     private static readonly HashSet<string> TwoLevelSuffixes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "co.uk", "org.uk", "com.au", "co.jp", "com.br", "co.za", "com.fr"
+        "co.uk", "org.uk", "com.au", "co.jp", "com.br", "co.za", "com.fr", "gouv.fr", "com.gh"
     };
 
     /// <summary>Table minimale de confusables cyrilliques/grecs -> équivalent latin.</summary>
@@ -170,6 +200,7 @@ public static class PhishingLogic
     public static string GetRegistrableDomain(string host)
     {
         ArgumentNullException.ThrowIfNull(host);
+        if (Suffixes is { Count: > 0 } psl) return psl.GetRegistrableDomain(host);
         var labels = host.Trim('.').ToLowerInvariant().Split('.', StringSplitOptions.RemoveEmptyEntries);
         if (labels.Length <= 2) return string.Join('.', labels);
         var deuxDerniers = $"{labels[^2]}.{labels[^1]}";
@@ -199,7 +230,18 @@ public static class PhishingLogic
         foreach (var marque in Brands.Keys)
         {
             if (IsLegitimateDomainForBrand(marque, domaine)) return null;
+        }
+        foreach (var marque in Brands.Keys)
+        {
+            if (CommonWordBrands.Contains(marque)) continue;
             var d = Levenshtein(libelle, marque);
+            // Noms proches de prénoms ou de mots (« amelie », « imports ») : seule la forme « marque + mot » compte
+            if (NoFuzzyBrands.Contains(marque))
+            {
+                // Mot entier séparé par des tirets : « ameli-remboursement » oui, « amelie-boutique » non
+                if (d > 0 && domaine.Split('.')[0].Split('-').Contains(marque, StringComparer.Ordinal)) return marque;
+                continue;
+            }
             // Tolérance proportionnelle : 1 faute pour les noms courts, 2 pour les longs.
             var seuil = marque.Length >= 8 ? 2 : 1;
             if (d >= 1 && d <= seuil) return marque;
@@ -243,7 +285,10 @@ public static class PhishingLogic
     /// - homographe ou typosquatting sur le domaine -> alerte quel que soit le texte ;
     /// - marque connue affichée sur une page de connexion dont le domaine n'est pas celui de la marque -> phishing.
     /// </summary>
-    public static PhishingAssessment Assess(string ocrText, string? pageUrl)
+    public static PhishingAssessment Assess(string ocrText, string? pageUrl) => Assess(ocrText, pageUrl, hasPasswordField: false);
+
+    /// <summary>Idem, en sachant si la page contient un vrai champ mot de passe (signal plus sûr que le texte lu).</summary>
+    public static PhishingAssessment Assess(string ocrText, string? pageUrl, bool hasPasswordField)
     {
         var raisons = new List<string>();
         var verdict = PhishingVerdict.Safe;
@@ -268,7 +313,7 @@ public static class PhishingLogic
         }
 
         var marques = FindBrandsInText(ocrText);
-        var connexion = LooksLikeLoginPage(ocrText);
+        var connexion = hasPasswordField || LooksLikeLoginPage(ocrText);
         foreach (var marque in marques)
         {
             if (IsLegitimateDomainForBrand(marque, domaine)) continue;
@@ -327,7 +372,7 @@ public static class PhishingLogic
         }
 
         if (hasPasswordField && Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttp
-            && !uri.IsLoopback)
+            && !uri.IsLoopback && !hote.EndsWith(".localhost", StringComparison.Ordinal)) // *.localhost = machine locale (RFC 6761)
             Raise(PhishingVerdict.Suspicious, "Mot de passe demandé sur une page non chiffrée (http).");
 
         return new PhishingAssessment(verdict, raisons);

@@ -14,10 +14,14 @@ public sealed partial class SettingsViewModel : ObservableObject, IPageViewModel
     private readonly ThemeService _theme;
     private readonly IDialogService _dialogs;
     private readonly ServiceLink _service;
+    private readonly PhishingReviewService _phishing;
 
     public SettingsViewModel(AppSettings settings, SettingsStore store, ProtectionService protection, ThemeService theme, IDialogService dialogs,
-        ServiceLink service)
+        ServiceLink service, PhishingReviewService phishing)
     {
+        _phishing = phishing;
+        _phishing.ListsChanged += () => UiThread.Post(RefreshPhishingStatus);
+        RefreshPhishingStatus();
         _service = service;
         _service.StatusChanged += () => UiThread.Post(RefreshServiceStatus);
         RefreshServiceStatus();
@@ -39,6 +43,37 @@ public sealed partial class SettingsViewModel : ObservableObject, IPageViewModel
     [ObservableProperty] private bool _modelFound;
     [ObservableProperty] private string _resolvedModelPath = string.Empty;
     [ObservableProperty] private string _savedMessage = string.Empty;
+
+    // Anti-phishing
+    [ObservableProperty] private string _trustedSitesText = string.Empty;
+    [ObservableProperty] private bool _hasTrustedSites;
+    [ObservableProperty] private string _feedStatus = string.Empty;
+
+    private void RefreshPhishingStatus()
+    {
+        var sites = PhishingReviewService.TrustedSites();
+        HasTrustedSites = sites.Count > 0;
+        TrustedSitesText = sites.Count == 0 ? "Aucun site déclaré de confiance."
+            : $"{sites.Count} site(s) : " + string.Join(", ", sites.Take(6)) + (sites.Count > 6 ? "…" : "");
+        FeedStatus = PhishingReviewService.FeedUpdatedAt is { } at
+            ? $"Dernière mise à jour : {at:dd/MM/yyyy HH:mm}."
+            : "Instantané livré avec CoreGuard (aucune mise à jour téléchargée).";
+    }
+
+    [RelayCommand]
+    private void ClearTrustedSites()
+    {
+        if (!_dialogs.Confirm("Retirer les sites de confiance",
+                "Tous les sites seront de nouveau analysés par l'anti-phishing.", "Retirer", danger: true)) return;
+        _phishing.ClearTrustedSites();
+    }
+
+    [RelayCommand]
+    private async Task UpdateFeedNowAsync()
+    {
+        FeedStatus = "Téléchargement de la liste OpenPhish…";
+        FeedStatus = await _phishing.UpdateFeedAsync();
+    }
 
     // Service CoreGuard et auto-défense
     [ObservableProperty] private string _serviceStatus = string.Empty;
