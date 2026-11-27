@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.IO.Pipes;
 using System.Security.AccessControl;
 using System.Security.Principal;
@@ -151,7 +151,8 @@ public sealed partial class PipeServer : IAsyncDisposable
                     IpcContract.Types.Hello or IpcContract.Types.GetStatus =>
                         new IpcEnvelope(IpcContract.Types.Status, Status: SafeStatus(), Version: IpcContract.ProtocolVersion),
                     IpcContract.Types.Challenge or IpcContract.Types.StopRequest or IpcContract.Types.AmsiScan
-                        or IpcContract.Types.LockdownEngage or IpcContract.Types.UnlockRequest =>
+                        or IpcContract.Types.LockdownEngage or IpcContract.Types.UnlockRequest
+                        or IpcContract.Types.ParanoiaEnable or IpcContract.Types.ParanoiaDisable =>
                         SafeCommand(message) ?? new IpcEnvelope(IpcContract.Types.Error, Error: "Requête refusée."),
                     // Toute autre demande est refusée
                     _ => new IpcEnvelope(IpcContract.Types.Error, Error: "Requête non prise en charge.")

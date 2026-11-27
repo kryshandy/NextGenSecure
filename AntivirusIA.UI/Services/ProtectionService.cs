@@ -363,12 +363,11 @@ public sealed class ProtectionService : IDisposable
             StopLocalExec();
             if (!userAction)
             {
-                // Le service fait foi (mode ré-appliqué après un redémarrage, ou changé ailleurs)
-                if (_settings.ParanoiaEnabled != _service.ParanoiaActive)
-                {
-                    bool active = _service.ParanoiaActive;
-                    UiThread.Post(() => { _settings.ParanoiaEnabled = active; _store.Save(_settings); });
-                }
+                // Connexion au service : le choix de l'utilisateur est poussé (activer ne fait que renforcer) ;
+                // un mode actif côté service (ré-appliqué après redémarrage) est reflété dans les réglages
+                if (_settings.ParanoiaEnabled && !_service.ParanoiaActive) { _ = EnableParanoiaViaServiceAsync(); return; }
+                if (!_settings.ParanoiaEnabled && _service.ParanoiaActive)
+                    UiThread.Post(() => { _settings.ParanoiaEnabled = true; _store.Save(_settings); });
                 SetParanoiaFromService();
                 return;
             }

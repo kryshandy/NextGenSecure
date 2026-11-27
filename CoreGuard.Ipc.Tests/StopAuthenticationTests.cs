@@ -178,4 +178,35 @@ public sealed class StopAuthenticationTests
         Assert.IsTrue((await client.RequestUnlockAsync(Password)).Accepted);
         Assert.IsFalse(locked);
     }
+
+    [TestMethod]
+    public async Task Paranoia_activee_librement_desactivee_seulement_avec_le_mot_de_passe()
+    {
+        string name = "CoreGuard.Test." + Guid.NewGuid().ToString("N");
+        var auth = new StopAuthenticator(ProtectionSecret.Create(Password, FastIterations));
+        bool on = false;
+
+        IpcEnvelope? Handle(IpcEnvelope r) => r.Type switch
+        {
+            IpcContract.Types.ParanoiaEnable => Reply(on = true, "activé"),
+            IpcContract.Types.Challenge => new IpcEnvelope(IpcContract.Types.Challenge, Challenge: auth.IssueChallenge()),
+            IpcContract.Types.ParanoiaDisable => auth.Verify(r.Stop) is { Accepted: true } ? Reply(!(on = false), "désactivé") : Reply(false, "refusé"),
+            _ => null
+        };
+        static IpcEnvelope Reply(bool ok, string m) => new(IpcContract.Types.ParanoiaResult, StopResult: new StopResult(ok, m));
+
+        await using var server = new PipeServer(name,
+            () => new ServiceStatus(1, Environment.ProcessId, DateTime.UtcNow, "x", false, false, []), null, Handle);
+        server.Start();
+        await using var client = new ServiceClient(name, requireServiceSession: false);
+        Assert.IsTrue(await client.ConnectAsync(TimeSpan.FromSeconds(5)));
+
+        Assert.IsTrue((await client.EnableParanoiaAsync()).Accepted, "commande transmise par le pipe");
+        Assert.IsTrue(on);
+        Assert.IsFalse((await client.DisableParanoiaAsync(null)).Accepted, "sans preuve : refusé");
+        Assert.IsFalse((await client.DisableParanoiaAsync("mauvais-mdp")).Accepted);
+        Assert.IsTrue(on);
+        Assert.IsTrue((await client.DisableParanoiaAsync(Password)).Accepted);
+        Assert.IsFalse(on);
+    }
 }
