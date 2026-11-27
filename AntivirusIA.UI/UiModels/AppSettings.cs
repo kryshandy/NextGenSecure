@@ -25,6 +25,9 @@ public sealed partial class AppSettings : ObservableObject
     [ObservableProperty] private bool _lockOnBadUsb;
     [ObservableProperty] private bool _lockdownCutsNetwork;
 
+    /// <summary>Entrées de démarrage autorisées par l'utilisateur (empreintes : on redemande si la commande change).</summary>
+    public List<string> AllowedPersistence { get; set; } = [];
+
     // Les seuils restent cohérents : suspect < malveillant, bornés à 1..100
     partial void OnThresholdSuspectChanged(int value)
     {

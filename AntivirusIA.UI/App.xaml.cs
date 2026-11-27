@@ -116,6 +116,7 @@ public partial class App : Application
         services.AddSingleton<UiThreatResponder>();
         services.AddSingleton<ServiceLink>();
         services.AddSingleton<LockdownUiController>();
+        services.AddSingleton<PersistencePromptService>();
         // Gestionnaire de mots de passe (coffre local) + canal d'auto-remplissage pour l'extension
         services.AddSingleton(sp => new VaultService(dataDir, sp.GetRequiredService<AlertHub>()));
         services.AddSingleton<ProtectionService>();

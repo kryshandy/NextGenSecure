@@ -94,9 +94,9 @@ Format : **En tant que** … / **Je veux** … / **Afin de** … — puis *Comme
 
 ### US-10 — Détecter une tentative de persistance
 - **…je veux** être averti quand un programme s'installe au démarrage, **afin de** l'autoriser ou le bloquer.
-- **Comment tester :** `./demo/03-persistance/demo-persistance.ps1` (crée une clé `HKCU\…\Run` + une tâche planifiée de test). **Puis obligatoirement** `./demo/03-persistance/demo-persistance.ps1 -Nettoyer`.
-- **Résultat attendu :** le gardien de persistance signale la nouvelle entrée Run/tâche.
-- **Statut : ✅ actif** (sondage registre/tâches ; services 7045 via journal Système, admin recommandé).
+- **Comment tester :** `./demo/03-persistance/demo-persistance.ps1` (crée une clé `HKCU\…\Run`, une tâche planifiée de l'utilisateur et un fichier dans son dossier Démarrage, sans admin). **Puis obligatoirement** `./demo/03-persistance/demo-persistance.ps1 -Nettoyer`.
+- **Résultat attendu :** en ≤ 5 s, 3 fenêtres « Nouveau programme au démarrage » (en bas à droite) avec le niveau de risque (« Risque élevé » : script dans un dossier temporaire). **Bloquer** → valeur Run et tâche supprimées (`reg query` / `schtasks /Query` ne les trouvent plus), fichier Démarrage visible dans la page Quarantaine. **Autoriser** → plus de question pour cette entrée tant que la commande ne change pas.
+- **Statut : ✅ actif** (sondage registre/tâches/dossier Démarrage ; services 7045 via journal Système, admin recommandé).
 
 ---
 
@@ -146,7 +146,7 @@ Depuis la racine du dépôt. Détails complets : `demo/README.md`.
 |---------|--------|-----------|------------------|-----------|
 | `01-powershell-amsi` | `./demo/01-powershell-amsi/demo-amsi.ps1` | AMSI / obfuscation | ⚠️ à la demande | aucun |
 | `02-ransomware-canari` | `./demo/02-ransomware-canari/demo-ransomware.ps1` | canaris + vssadmin simulé | ⚠️ partiel | `-Nettoyer` (ou fichier `STOP`) |
-| `03-persistance` | `./demo/03-persistance/demo-persistance.ps1` | clé Run + tâche | ✅ actif | **`-Nettoyer` obligatoire** |
+| `03-persistance` | `./demo/03-persistance/demo-persistance.ps1` | clé Run + tâche + fichier Démarrage | ✅ actif | **`-Nettoyer` obligatoire** |
 | `04-badusb-hid` | `dotnet run --project .\demo\04-badusb-hid` | frappe HID rapide | 🔜 à venir | `Échap` / fermer |
 | `05-crypto-clipper` | `dotnet run --project .\demo\05-crypto-clipper` | presse-papiers | ✅ actif | `Ctrl+C` / 60 s |
 | `06-phishing-visuel` | `./demo/06-phishing-visuel/serve-phishing-demo.ps1` | OCR phishing | ⚠️ câblage extension | `Ctrl+C` / `/stop` |

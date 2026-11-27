@@ -64,9 +64,10 @@ public sealed class ProtectionService : IDisposable
 
     private readonly ServiceLink _service;
     private readonly LockdownUiController _lockdown;
+    private readonly PersistencePromptService _persistencePrompt;
 
     public ProtectionService(AppSettings settings, AlertHub alerts, ScanService scan, UiThreatResponder responder, INetworkGuard network,
-        ServiceLink service, LockdownUiController lockdown)
+        ServiceLink service, LockdownUiController lockdown, PersistencePromptService persistencePrompt)
     {
         _settings = settings;
         _alerts = alerts;
@@ -75,6 +76,7 @@ public sealed class ProtectionService : IDisposable
         _network = network;
         _service = service;
         _lockdown = lockdown;
+        _persistencePrompt = persistencePrompt;
         Modules = [Files, Canaries, Behavior, Persistence, Network, Clipboard, Sensors, BadUsb, Paranoia];
 
         // Le service (SYSTEM) prend la télémétrie ETW dès qu'il est joignable, et la rend s'il disparaît
@@ -231,11 +233,11 @@ public sealed class ProtectionService : IDisposable
         Guard(Persistence, () =>
         {
             var watcher = new PersistenceWatcher();
-            watcher.PersistenceDetected += (_, e) => _alerts.Publish(
-                AlertSeverity.Warning, "Persistance", $"Nouvelle persistance : {e.Kind}", $"{e.Target} -> {e.Command}");
+            // Fenêtre Autoriser / Bloquer pour chaque nouvelle entrée de démarrage
+            watcher.PersistenceDetected += (_, e) => _persistencePrompt.Handle(e);
             watcher.Start();
             _persistence = watcher;
-            Set(Persistence, ModuleState.Active, "Registre et tâches surveillés");
+            Set(Persistence, ModuleState.Active, "Run, tâches planifiées, dossier Démarrage, services : Autoriser / Bloquer");
         });
     }
 

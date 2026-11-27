@@ -35,7 +35,7 @@ public sealed class SensorControlTests
         using var ping = StartPing();
         try
         {
-            string path = ping.MainModule!.FileName;
+            string path = Path.Combine(Environment.SystemDirectory, "PING.EXE"); // MainModule peut être null juste après le démarrage
             CollectionAssert.Contains(SensorControl.FindProcessesByImage(path).ToList(), ping.Id);
             Assert.AreEqual(0, SensorControl.FindProcessesByImage(@"C:\Ailleurs\PING.EXE").Count, "même nom, autre chemin : ignoré");
         }
@@ -49,7 +49,7 @@ public sealed class SensorControlTests
     public void Couper_une_application_de_bureau_arrete_ses_processus()
     {
         using var ping = StartPing();
-        string path = ping.MainModule!.FileName;
+        string path = Path.Combine(Environment.SystemDirectory, "PING.EXE"); // MainModule peut être null juste après le démarrage
         var killed = new List<int>();
 
         // Application de bureau : aucune écriture dans le registre, seul l'arrêt des processus est tenté

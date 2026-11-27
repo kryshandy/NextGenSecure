@@ -1,8 +1,12 @@
-# =====================================================================
+﻿# =====================================================================
 # DÉMO — INOFFENSIF : spécimen 03 (persistance)
-# Crée, sous HKCU uniquement (pas d'admin), une clé Run et une tâche
-# planifiée pointant vers un script de TEST qui ne fait qu'écrire une
-# ligne dans un journal de test. Noms préfixés "CoreGuardDemo".
+# Crée, sans droits admin, une clé Run (HKCU), une tâche planifiée de
+# l'utilisateur et un fichier dans son dossier Démarrage, tous pointant
+# vers un script de TEST qui ne fait qu'écrire une ligne dans un journal
+# de test. Noms préfixés "CoreGuardDemo".
+# Attendu : CoreGuard affiche 3 fenêtres « Autoriser / Bloquer » ;
+# « Bloquer » supprime la valeur Run et la tâche, et met le fichier du
+# dossier Démarrage en quarantaine (restaurable).
 # Nettoyage : .\demo-persistance.ps1 -Nettoyer   (à lancer après la démo !)
 # =====================================================================
 param([switch]$Nettoyer)
@@ -14,12 +18,15 @@ $script  = Join-Path $dossier 'inoffensif.cmd'
 $cleRun  = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 $nomRun  = 'CoreGuardDemo'
 $nomTache = 'CoreGuardDemoTask'
+$demarrage = Join-Path ([Environment]::GetFolderPath('Startup')) 'CoreGuardDemo-inoffensif.cmd'
 
 if ($Nettoyer) {
     Remove-ItemProperty -Path $cleRun -Name $nomRun -ErrorAction SilentlyContinue
-    & schtasks.exe /Delete /TN $nomTache /F 2>$null | Out-Null
+    $ErrorActionPreference = 'SilentlyContinue'
+    & schtasks.exe /Delete /TN $nomTache /F 2>&1 | Out-Null
+    Remove-Item $demarrage -Force
     if (Test-Path $racine) { Remove-Item $racine -Recurse -Force }
-    Write-Output 'Nettoyage termine : cle Run, tache et dossier de test supprimes.'
+    Write-Output 'Nettoyage termine : cle Run, tache, fichier Demarrage et dossier de test supprimes.'
     return
 }
 
@@ -35,8 +42,15 @@ Set-Content -Path $script -Encoding ASCII -Value @(
 Set-ItemProperty -Path $cleRun -Name $nomRun -Value "`"$script`""
 Write-Output "Cle Run creee : $cleRun\$nomRun"
 
-# 2) Tâche planifiée à l'ouverture de session, utilisateur courant
-& schtasks.exe /Create /TN $nomTache /TR "`"$script`"" /SC ONLOGON /F | Out-Null
-Write-Output "Tache planifiee creee : $nomTache"
+# 2) Tâche planifiée quotidienne de l'utilisateur courant (ONLOGON exigerait les droits admin)
+$ErrorActionPreference = 'Continue'
+& schtasks.exe /Create /TN $nomTache /TR "`"$script`"" /SC DAILY /ST 23:59 /F 2>&1 | Out-Null
+if ($LASTEXITCODE -eq 0) { Write-Output "Tache planifiee creee : \$nomTache" }
+else { Write-Output "Tache planifiee NON creee (code $LASTEXITCODE)" }
+$ErrorActionPreference = 'Stop'
+
+# 3) Fichier dans le dossier Démarrage de l'utilisateur
+Copy-Item -Path $script -Destination $demarrage -Force
+Write-Output "Fichier Demarrage cree : $demarrage"
 
 Write-Output 'Termine. NETTOYAGE OBLIGATOIRE : .\demo-persistance.ps1 -Nettoyer'

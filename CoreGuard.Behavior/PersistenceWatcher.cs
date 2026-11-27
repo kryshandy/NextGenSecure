@@ -4,7 +4,11 @@ using Microsoft.Win32;
 
 namespace CoreGuard.Behavior;
 
-/// <summary>Mécanisme de persistance détecté. Kind : RunKey, ScheduledTask ou Service.</summary>
+/// <summary>
+/// Mécanisme de persistance détecté. Kind : RunKey, ScheduledTask, StartupFolder ou Service.
+/// Target identifie l'entrée pour pouvoir la retirer : « Hive\chemin\valeur », chemin de tâche (« \Nom »),
+/// chemin du fichier du dossier Démarrage, ou nom du service.
+/// </summary>
 public sealed record PersistenceEvent(string Kind, string Target, string Command);
 
 /// <summary>
@@ -30,7 +34,8 @@ public sealed class PersistenceWatcher : IDisposable
     private readonly string _tasksDir;
     private readonly object _lock = new();
     private Dictionary<string, string> _runSnapshot = new(StringComparer.OrdinalIgnoreCase);
-    private HashSet<string> _taskSnapshot = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, string> _taskSnapshot = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, string> _startupSnapshot = new(StringComparer.OrdinalIgnoreCase);
     private Timer? _timer;
     private EventLogWatcher? _serviceWatcher;
     private int _polling;
@@ -57,7 +62,8 @@ public sealed class PersistenceWatcher : IDisposable
 
             // Instantané de référence : seuls les ajouts ultérieurs déclenchent un événement.
             _runSnapshot = ReadRunValues();
-            _taskSnapshot = ReadTaskNames();
+            _taskSnapshot = ReadTasks();
+            _startupSnapshot = ReadStartupFiles();
             StartServiceWatcher();
             _timer = new Timer(_ => Poll(), null, _interval, _interval);
             IsRunning = true;
@@ -124,11 +130,17 @@ public sealed class PersistenceWatcher : IDisposable
             }
             _runSnapshot = runs;
 
-            var tasks = ReadTaskNames();
-            foreach (var t in tasks)
-                if (!_taskSnapshot.Contains(t))
-                    Raise(new PersistenceEvent("ScheduledTask", Clean(t), ReadTaskCommand(Path.Combine(_tasksDir, t))));
+            var tasks = ReadTasks();
+            foreach (var (name, cmd) in tasks)
+                if (!_taskSnapshot.ContainsKey(name))
+                    Raise(new PersistenceEvent("ScheduledTask", Clean(name), cmd));
             _taskSnapshot = tasks;
+
+            var startup = ReadStartupFiles();
+            foreach (var (file, target) in startup)
+                if (!_startupSnapshot.ContainsKey(file))
+                    Raise(new PersistenceEvent("StartupFolder", Clean(file), target));
+            _startupSnapshot = startup;
         }
         catch (Exception ex)
         {
@@ -155,17 +167,46 @@ public sealed class PersistenceWatcher : IDisposable
         return result;
     }
 
-    private HashSet<string> ReadTaskNames()
+    /// <summary>
+    /// Tâches planifiées : nom (chemin « \Dossier\Nom ») → commande. Le dossier System32\Tasks n'est lisible que
+    /// par les administrateurs : sans ces droits, on interroge le Planificateur de tâches (COM), qui liste les
+    /// tâches visibles par l'utilisateur, dont celles qu'un programme malveillant aurait créées en son nom.
+    /// </summary>
+    private Dictionary<string, string> ReadTasks()
     {
-        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var fromFiles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         try
         {
-            if (!Directory.Exists(_tasksDir)) return set;
-            foreach (var f in Directory.EnumerateFiles(_tasksDir, "*", SearchOption.AllDirectories))
-                set.Add(Path.GetRelativePath(_tasksDir, f));
+            if (Directory.Exists(_tasksDir))
+                foreach (var f in Directory.EnumerateFiles(_tasksDir, "*", SearchOption.AllDirectories))
+                    fromFiles["\\" + Path.GetRelativePath(_tasksDir, f)] = ReadTaskCommand(f);
         }
-        catch { /* accès refusé : liste partielle */ }
-        return set;
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+        {
+            fromFiles.Clear(); // lecture partielle : on préfère le Planificateur
+        }
+        return fromFiles.Count > 0 ? fromFiles : ScheduledTasks.ReadAll();
+    }
+
+    /// <summary>Fichiers des dossiers Démarrage (utilisateur et commun) : chemin → nom affiché.</summary>
+    private static Dictionary<string, string> ReadStartupFiles()
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var folder in new[] { Environment.SpecialFolder.Startup, Environment.SpecialFolder.CommonStartup })
+        {
+            try
+            {
+                string dir = Environment.GetFolderPath(folder);
+                if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) continue;
+                foreach (var f in Directory.EnumerateFiles(dir))
+                {
+                    if (Path.GetFileName(f).Equals("desktop.ini", StringComparison.OrdinalIgnoreCase)) continue;
+                    result[f] = Clean(Path.GetFileName(f));
+                }
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { /* dossier inaccessible */ }
+        }
+        return result;
     }
 
     private static string ReadTaskCommand(string file)

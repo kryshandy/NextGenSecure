@@ -79,7 +79,7 @@ CoreGuard.sln
 - ✅ Quarantaine **AES-256-GCM** authentifiée, clé protégée par **DPAPI**, droits NTFS restreints (exécution refusée), restauration refusée si le fichier est altéré
 - ✅ **Arrêt immédiat** des commandes de suppression des clichés instantanés (`vssadmin`, `wmic`, `diskshadow`) repérées par ETW, via `IKernelActionProvider` (garde-fous : jamais de processus critique de Windows)
 - ✅ **Anti-ransomware** : canaris cachés dans les dossiers de chaque utilisateur, restauration immédiate, et **arrêt du processus coupable** identifié par l'audit NTFS (PID exact, événement 4663 ; activé par `install-service.ps1`). Sans audit : alerte et restauration, jamais d'arrêt sur supposition
-- 🟡 **Gardien de persistance** (Run/RunOnce, tâches planifiées, services 7045) — détection sans pop-up de blocage
+- ✅ **Gardien de persistance** (Run/RunOnce, tâches planifiées, dossier Démarrage, services 7045) — fenêtre **Autoriser / Bloquer** avec niveau de risque, retrait réel (fichier Démarrage mis en quarantaine), choix mémorisé
 - 🟡 Pare-feu : règles par application et **kill switch** via le pare-feu Windows ; WFP natif prévu
 - ✅ **Auto-défense** du service : DACL durcie (taskkill refusé), watchdog mutuel (chaque processus relance l'autre), `sc stop` refusé, arrêt uniquement par **mot de passe** (défi-réponse HMAC, verrouillage après 5 échecs)
 - ✅ **Moniteur BadUSB** : un faux clavier USB qui tape à une vitesse surhumaine (ou à un rythme de machine) est bloqué 10 s ; un nouveau clavier branché déclenche une alerte et une vigilance renforcée
@@ -145,7 +145,7 @@ dotnet run --project AntivirusIA.UI
 dotnet test AntivirusIA.slnx
 ```
 
-380 tests MSTest (moteurs, quarantaine, règles, comportement, réseau, réponse, IPC, service, fournisseur AMSI natif, vie privée, coffre, extension). Procédure de test manuelle : [`docs/TESTING.md`](docs/TESTING.md).
+389 tests MSTest (moteurs, quarantaine, règles, comportement, réseau, réponse, IPC, service, fournisseur AMSI natif, vie privée, coffre, extension). Procédure de test manuelle : [`docs/TESTING.md`](docs/TESTING.md).
 
 ---
 
