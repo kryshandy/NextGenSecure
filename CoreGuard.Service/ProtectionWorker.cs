@@ -1,4 +1,4 @@
-using AntivirusIA.Core.Interfaces;
+﻿using AntivirusIA.Core.Interfaces;
 using CoreGuard.Behavior;
 using CoreGuard.Ipc;
 using CoreGuard.Response;
@@ -27,6 +27,7 @@ public sealed class ProtectionWorker(
     WatchdogSupervisor watchdog,
     ScriptScanner scripts,
     LockdownController lockdown,
+    ILockdownBackend lockdownBackend,
     ServiceOptions options,
     IHostApplicationLifetime lifetime,
     ILogger<ProtectionWorker> logger) : BackgroundService
@@ -41,6 +42,7 @@ public sealed class ProtectionWorker(
     private MemoryGuard? _memory;
     private CredentialGuard? _credentials;
     private RemoteLockWatcher? _remoteLock;
+    private ParanoiaGuard? _paranoia;
     private DateTime _lastEngage = DateTime.MinValue;
     private int _stopAccepted;
     private int _amsiScanned, _amsiBlocked;
@@ -59,6 +61,7 @@ public sealed class ProtectionWorker(
         StartMemoryScan();
         StartCredentialGuard();
         StartLockdown();
+        StartParanoia();
         if (options.Supervise) await StartSelfDefenseAsync();
         logger.LogInformation("CoreGuard démarré (PID {Pid}, élevé : {Elevated}, actions : {Provider}, auto-défense : {Harden}, mot de passe : {Pwd}).",
             Environment.ProcessId, Environment.IsPrivilegedProcess, actions.Name, options.Harden, stopAuthenticator.IsConfigured);
@@ -130,6 +133,26 @@ public sealed class ProtectionWorker(
                 lockdown.Release();
                 Publish("Warning", "Verrouillage", "PC déverrouillé", "Mot de passe de protection vérifié : blocages levés.");
                 return new IpcEnvelope(IpcContract.Types.LockdownResult, StopResult: new StopResult(true, "PC déverrouillé."));
+            }
+
+            case IpcContract.Types.ParanoiaEnable:
+                return new IpcEnvelope(IpcContract.Types.ParanoiaResult, StopResult: _paranoia?.Enable()
+                    ?? new StopResult(false, "Mode Paranoïa indisponible."));
+
+            case IpcContract.Types.ParanoiaDisable:
+            {
+                // Désactiver affaiblit la protection : mot de passe de protection exigé s'il est configuré
+                if (stopAuthenticator.IsConfigured)
+                {
+                    StopResult check = stopAuthenticator.Verify(request.Stop);
+                    if (!check.Accepted)
+                    {
+                        Publish("Critical", "Paranoïa", "Désactivation refusée", check.Message);
+                        return new IpcEnvelope(IpcContract.Types.ParanoiaResult, StopResult: check);
+                    }
+                }
+                return new IpcEnvelope(IpcContract.Types.ParanoiaResult, StopResult: _paranoia?.Disable()
+                    ?? new StopResult(false, "Mode Paranoïa indisponible."));
             }
 
             case IpcContract.Types.AmsiScan:
@@ -240,6 +263,18 @@ public sealed class ProtectionWorker(
     private static string? Sanitize(string? text) =>
         string.IsNullOrWhiteSpace(text) ? null : new string(text.Where(c => !char.IsControl(c)).Take(100).ToArray());
 
+    // ---------- Mode Paranoïa ----------
+
+    private void StartParanoia()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        _paranoia = new ParanoiaGuard(actions, lockdownBackend, () => lockdown.State.Engaged, Publish, logger, ServiceHost.ParanoiaStatePath);
+        if (_etw is not null) _etw.ProcessStarted += (_, e) => _paranoia.OnProcessStarted(e.Pid, e.Image);
+        _paranoia.Reassert(); // actif avant un redémarrage : ré-appliqué
+        if (_paranoia.Enabled) logger.LogWarning("Mode Paranoïa toujours actif : {Status}", _paranoia.StatusText);
+        _server?.BroadcastStatus();
+    }
+
     // ---------- Anti-infostealer ----------
 
     private void StartCredentialGuard()
@@ -348,11 +383,15 @@ public sealed class ProtectionWorker(
         var lockdownModule = ls.Engaged
             ? new ModuleStatus(ServiceModules.Lockdown, "Active", $"Verrouillé depuis {ls.SinceUtc?.ToLocalTime():HH:mm} : {ls.Reason}")
             : new ModuleStatus(ServiceModules.Lockdown, "Disabled", $"Déverrouillé ({remoteText})");
+        var paranoiaGuard = _paranoia;
+        var paranoia = paranoiaGuard is null
+            ? new ModuleStatus(ServiceModules.Paranoia, "Unavailable", "Non démarré")
+            : new ModuleStatus(ServiceModules.Paranoia, paranoiaGuard.Enabled ? "Active" : "Disabled", paranoiaGuard.StatusText);
         var amsi = AmsiProviderRegistered()
             ? new ModuleStatus(ServiceModules.Amsi, "Active", $"Fournisseur AMSI enregistré : {_amsiScanned} contenu(s) analysé(s), {_amsiBlocked} bloqué(s)")
             : new ModuleStatus(ServiceModules.Amsi, "Unavailable", "Fournisseur AMSI non enregistré (scripts/install-service.ps1)");
         return new ServiceStatus(IpcContract.ProtocolVersion, Environment.ProcessId, _startedUtc,
-            actions.Name, actions.IsKernelBacked, Environment.IsPrivilegedProcess, [behavior, canaries, credentials, amsi, memory, lockdownModule, selfDefense])
+            actions.Name, actions.IsKernelBacked, Environment.IsPrivilegedProcess, [behavior, canaries, credentials, amsi, memory, lockdownModule, paranoia, selfDefense])
         {
             StopPasswordConfigured = stopAuthenticator.IsConfigured
         };
@@ -370,6 +409,7 @@ public sealed class ProtectionWorker(
         _memory = null;
         _credentials?.Dispose(); // retire le profil leurre
         _remoteLock?.Dispose();
+        _paranoia?.Dispose(); // session WFP dynamique fermée : filtres retirés (l'état reste enregistré pour le redémarrage)
         _credentials = null;
         _canaries = null;
         if (_server is not null) await _server.DisposeAsync();

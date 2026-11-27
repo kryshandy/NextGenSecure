@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using AntivirusIA.Core.Interfaces;
 using CoreGuard.Ipc;
 using CoreGuard.Network;
@@ -54,18 +54,28 @@ builder.Services.AddSingleton<UserModeActionProvider>(sp =>
     var firewall = sp.GetRequiredService<INetworkGuard>();
     return new UserModeActionProvider((rule, path) =>
     {
-        if (!firewall.CanManageFirewall) return false;
-        firewall.BlockApplication(rule, path);
-        return true;
+        // Isolement réseau d'un programme malveillant : filtre WFP natif persistant (par AppId), sinon pare-feu Windows
+        try
+        {
+            using var wfp = new WfpFirewall(dynamic: false);
+            wfp.BlockApplicationOutbound(path, rule);
+            return true;
+        }
+        catch (NetworkGuardException)
+        {
+            if (!firewall.CanManageFirewall) return false;
+            firewall.BlockApplication(rule, path);
+            return true;
+        }
     });
 });
 builder.Services.AddSingleton<IKernelActionProvider>(sp => sp.GetRequiredService<UserModeActionProvider>());
 // Règles de contenu (Data/rules.json) partagées avec le moteur de scan, appliquées aux scripts soumis par AMSI
 builder.Services.AddSingleton(_ => new AntivirusIA.Engines.PatternRuleEngine(Path.Combine(AppContext.BaseDirectory, "Data", "rules.json")));
 builder.Services.AddSingleton<ScriptScanner>();
-builder.Services.AddSingleton(sp => new LockdownController(
-    OperatingSystem.IsWindows() ? new RegistryLockdownBackend(sp.GetRequiredService<INetworkGuard>()) : throw new PlatformNotSupportedException(),
-    ServiceHost.LockdownStatePath));
+builder.Services.AddSingleton<ILockdownBackend>(sp =>
+    OperatingSystem.IsWindows() ? new RegistryLockdownBackend(sp.GetRequiredService<INetworkGuard>()) : throw new PlatformNotSupportedException());
+builder.Services.AddSingleton(sp => new LockdownController(sp.GetRequiredService<ILockdownBackend>(), ServiceHost.LockdownStatePath));
 builder.Services.AddHostedService<ProtectionWorker>();
 
 await builder.Build().RunAsync();

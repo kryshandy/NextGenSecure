@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -38,6 +38,9 @@ public static class IpcContract
         public const string LockdownEngage = "lockdownEngage";
         public const string UnlockRequest = "unlockRequest";
         public const string LockdownResult = "lockdownResult";
+        public const string ParanoiaEnable = "paranoiaEnable";
+        public const string ParanoiaDisable = "paranoiaDisable";
+        public const string ParanoiaResult = "paranoiaResult";
     }
 
     internal static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
@@ -147,4 +150,5 @@ public static class ServiceModules
     public const string Memory = "Memory";
     public const string Credentials = "Credentials";
     public const string Lockdown = "Lockdown";
+    public const string Paranoia = "Paranoia";
 }

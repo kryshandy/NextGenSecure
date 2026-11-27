@@ -1,4 +1,4 @@
-using Microsoft.Diagnostics.Tracing.Parsers;
+﻿using Microsoft.Diagnostics.Tracing.Parsers;
 using Microsoft.Diagnostics.Tracing.Session;
 
 namespace CoreGuard.Behavior;
@@ -22,6 +22,9 @@ public sealed class EtwProcessMonitor : IProcessTelemetry
 
     public bool IsRunning { get; private set; }
     public event EventHandler<BehaviorAlert>? AlertRaised;
+
+    /// <summary>Chaque démarrage de processus (Mode Paranoïa : contrôle de l'image lancée).</summary>
+    public event EventHandler<ProcessEvent>? ProcessStarted;
     public event EventHandler<string>? Warning;
 
     public bool Start()
@@ -69,6 +72,7 @@ public sealed class EtwProcessMonitor : IProcessTelemetry
         try
         {
             var evt = new ProcessEvent(pid, parentPid, image ?? string.Empty, commandLine ?? string.Empty, when.ToUniversalTime());
+            ProcessStarted?.Invoke(this, evt);
             foreach (var alert in _engine.Evaluate(evt))
                 AlertRaised?.Invoke(this, alert);
         }

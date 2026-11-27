@@ -1,4 +1,4 @@
-using System.IO.Pipes;
+﻿using System.IO.Pipes;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
 
@@ -142,6 +142,46 @@ public sealed partial class ServiceClient : IAsyncDisposable
         finally { _requestLock.Release(); }
     }
 
+    /// <summary>Active le Mode Paranoïa (aucun mot de passe : renforcer la protection doit être immédiat).</summary>
+    public async Task<StopResult> EnableParanoiaAsync(CancellationToken ct = default)
+    {
+        if (!IsConnected) return new StopResult(false, "Service CoreGuard non connecté.");
+        await _requestLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            IpcEnvelope reply = await RoundTripAsync(new IpcEnvelope(IpcContract.Types.ParanoiaEnable), ct).ConfigureAwait(false);
+            return reply.StopResult ?? new StopResult(false, reply.Error ?? "Réponse du service invalide.");
+        }
+        catch (TimeoutException) { return new StopResult(false, "Le service ne répond pas."); }
+        finally { _requestLock.Release(); }
+    }
+
+    /// <summary>
+    /// Désactive le Mode Paranoïa. Avec un mot de passe : défi-réponse HMAC (comme l'arrêt) ; sans : accepté par le
+    /// service seulement si aucun mot de passe de protection n'est configuré.
+    /// </summary>
+    public async Task<StopResult> DisableParanoiaAsync(string? password, CancellationToken ct = default)
+    {
+        if (!IsConnected) return new StopResult(false, "Service CoreGuard non connecté.");
+        await _requestLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            StopRequest? proof = null;
+            if (password is not null)
+            {
+                IpcEnvelope challengeReply = await RoundTripAsync(new IpcEnvelope(IpcContract.Types.Challenge), ct).ConfigureAwait(false);
+                if (challengeReply.Challenge is not { } challenge)
+                    return new StopResult(false, challengeReply.Error ?? "Le service n'a pas fourni de défi.");
+                string answer = await Task.Run(() => StopProtocol.Answer(password, challenge), ct).ConfigureAwait(false);
+                proof = new StopRequest(challenge.Nonce, answer);
+            }
+            IpcEnvelope verdict = await RoundTripAsync(new IpcEnvelope(IpcContract.Types.ParanoiaDisable, Stop: proof), ct).ConfigureAwait(false);
+            return verdict.StopResult ?? new StopResult(false, verdict.Error ?? "Réponse du service invalide.");
+        }
+        catch (TimeoutException) { return new StopResult(false, "Le service ne répond pas."); }
+        finally { _requestLock.Release(); }
+    }
+
     // Une seule demande à la fois (verrou) : la prochaine réponse non sollicitée (hors état/alerte) lui revient
     private async Task<IpcEnvelope> RoundTripAsync(IpcEnvelope request, CancellationToken ct)
     {
@@ -195,7 +235,8 @@ public sealed partial class ServiceClient : IAsyncDisposable
                     case IpcContract.Types.Alert when message.Alert is not null:
                         AlertReceived?.Invoke(this, message.Alert);
                         break;
-                    case IpcContract.Types.Challenge or IpcContract.Types.StopResult or IpcContract.Types.LockdownResult or IpcContract.Types.Error:
+                    case IpcContract.Types.Challenge or IpcContract.Types.StopResult or IpcContract.Types.LockdownResult
+                        or IpcContract.Types.ParanoiaResult or IpcContract.Types.Error:
                         _pending?.TrySetResult(message);
                         break;
                 }

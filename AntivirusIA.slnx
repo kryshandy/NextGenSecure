@@ -1,8 +1,9 @@
-﻿<Solution>
+<Solution>
   <Project Path="AntivirusIA.AI/AntivirusIA.AI.csproj" />
   <Project Path="AntivirusIA.Core/AntivirusIA.Core.csproj" />
   <Project Path="AntivirusIA.Engines/AntivirusIA.Engines.csproj" />
   <Project Path="AntivirusIA.Infrastructure/AntivirusIA.Infrastructure.csproj" />
+  <Project Path="AntivirusIA.Ml/AntivirusIA.Ml.csproj" />
   <Project Path="AntivirusIA.Tests/AntivirusIA.Tests.csproj" />
   <Project Path="AntivirusIA.UI/AntivirusIA.UI.csproj" />
   <Project Path="CoreGuard.AmsiProvider/CoreGuard.AmsiProvider.csproj" />

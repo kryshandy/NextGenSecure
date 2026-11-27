@@ -65,10 +65,16 @@ public sealed class ProtectionService : IDisposable
     private readonly ServiceLink _service;
     private readonly LockdownUiController _lockdown;
     private readonly PersistencePromptService _persistencePrompt;
+    private readonly IDialogService _dialogs;
+    private readonly SettingsStore _store;
+    private UserDirExecutionGuard? _localExec;
+    private int _paranoiaBusy;
 
     public ProtectionService(AppSettings settings, AlertHub alerts, ScanService scan, UiThreatResponder responder, INetworkGuard network,
-        ServiceLink service, LockdownUiController lockdown, PersistencePromptService persistencePrompt)
+        ServiceLink service, LockdownUiController lockdown, PersistencePromptService persistencePrompt, IDialogService dialogs, SettingsStore store)
     {
+        _dialogs = dialogs;
+        _store = store;
         _settings = settings;
         _alerts = alerts;
         _scan = scan;
@@ -109,7 +115,7 @@ public sealed class ProtectionService : IDisposable
             ApplyClipboard();
             ApplySensors();
             ApplyBadUsb();
-            ApplyParanoia();
+            ApplyParanoia(userAction: true);
         }
         UiThread.Post(() => ModulesChanged?.Invoke());
     });
@@ -128,7 +134,7 @@ public sealed class ProtectionService : IDisposable
             var watched = monitor.Start([downloads], includeSubdirectories: false);
             if (watched.Count == 0) { monitor.Dispose(); Set(Files, ModuleState.Unavailable, "Dossier Téléchargements introuvable"); return; }
             _files = monitor;
-            Set(Files, ModuleState.Active, "Téléchargements surveillés");
+            Set(Files, ModuleState.Active, "Téléchargements : verdict vert / orange / rouge (origine, signature, moteurs)");
         });
     }
 
@@ -143,7 +149,8 @@ public sealed class ProtectionService : IDisposable
             try
             {
                 await Task.Delay(1500); // laisse le navigateur terminer l'écriture
-                await _scan.ScanFileAsync(path);
+                var outcome = await _scan.ScanFileAsync(path);
+                ReportDownload(path, outcome);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or OperationCanceledException)
             {
@@ -151,6 +158,25 @@ public sealed class ProtectionService : IDisposable
             }
             finally { _downloadScanLock.Release(); }
         });
+    }
+
+    // Smart Download Guard : marque du Web (Zone.Identifier) + signature + verdict → vert / orange / rouge
+    private void ReportDownload(string path, ScanOutcome outcome)
+    {
+        var motw = MarkOfTheWeb.Read(path);
+        var trust = outcome.Result.Trust;
+        var assessment = DownloadRisk.Assess(path, motw, trust?.IsTrusted ?? false, trust?.Publisher, outcome.Verdict.ToString(), outcome.Score);
+
+        string level = assessment.Level switch { DownloadLevel.Red => "rouge", DownloadLevel.Orange => "orange", _ => "vert" };
+        _alerts.Publish(assessment.Level switch { DownloadLevel.Red => AlertSeverity.Critical, DownloadLevel.Orange => AlertSeverity.Warning, _ => AlertSeverity.Info },
+            "Téléchargements", $"Téléchargement {level} : {Path.GetFileName(path)}", string.Join(" ; ", assessment.Reasons));
+
+        // Fenêtre pour tout ce qui peut s'exécuter, et pour tout fichier orange ou rouge
+        if (assessment.Level == DownloadLevel.Green && !DownloadRisk.IsRunnable(path)) return;
+        UiThread.Post(() => new Views.DownloadGuardWindow(path, motw, assessment, outcome.Quarantined, async () =>
+            await _scan.QuarantineAsync(outcome)
+                ? "Fichier mis en quarantaine (restaurable depuis la page Quarantaine)."
+                : "Mise en quarantaine impossible (fichier ouvert ou déjà déplacé ?).").Show());
     }
 
     // ---- Canaris anti-ransomware ----
@@ -189,6 +215,7 @@ public sealed class ProtectionService : IDisposable
             if (_disposed) return;
             ApplyBehavior();
             ApplyCanaries();
+            ApplyParanoia(userAction: false);
         }
         UiThread.Post(() => ModulesChanged?.Invoke());
     });
@@ -325,14 +352,113 @@ public sealed class ProtectionService : IDisposable
         });
     }
 
-    private void ApplyParanoia()
+    // ---- Mode Paranoïa ----
+    // Avec le service (SYSTEM) : USB bloqué, WFP natif (entrées refusées, outils détournés coupés d'Internet), blocage
+    // d'exécution par ETW ; désactivation protégée par le mot de passe de protection.
+    // Sans service : l'application bloque seule l'exécution non signée depuis les dossiers utilisateur (scrutation).
+    private void ApplyParanoia(bool userAction)
     {
-        bool changed = _paranoia.SetEnabled(_settings.ParanoiaEnabled);
-        if (changed)
-            _alerts.Publish(AlertSeverity.Info, "Paranoïa", _settings.ParanoiaEnabled ? "Mode paranoïa activé" : "Mode paranoïa désactivé",
-                "Politique de durcissement mise à jour (application réelle déléguée à la couche service)");
-        Set(Paranoia, _settings.ParanoiaEnabled ? ModuleState.Active : ModuleState.Disabled,
-            _settings.ParanoiaEnabled ? "Politique stricte" : "Désactivé");
+        if (_service.HandlesParanoia)
+        {
+            StopLocalExec();
+            if (!userAction)
+            {
+                // Le service fait foi (mode ré-appliqué après un redémarrage, ou changé ailleurs)
+                if (_settings.ParanoiaEnabled != _service.ParanoiaActive)
+                {
+                    bool active = _service.ParanoiaActive;
+                    UiThread.Post(() => { _settings.ParanoiaEnabled = active; _store.Save(_settings); });
+                }
+                SetParanoiaFromService();
+                return;
+            }
+            if (_settings.ParanoiaEnabled && !_service.ParanoiaActive) _ = EnableParanoiaViaServiceAsync();
+            else if (!_settings.ParanoiaEnabled && _service.ParanoiaActive) UiThread.Post(DisableParanoiaViaService);
+            else SetParanoiaFromService();
+            return;
+        }
+
+        _paranoia.SetEnabled(_settings.ParanoiaEnabled);
+        if (!_settings.ParanoiaEnabled)
+        {
+            if (StopLocalExec()) _alerts.Publish(AlertSeverity.Info, "Paranoïa", "Mode Paranoïa désactivé", "Blocage d'exécution levé.");
+            Set(Paranoia, ModuleState.Disabled, "Désactivé");
+            return;
+        }
+        if (_localExec is null)
+        {
+            var authenticode = new AntivirusIA.Engines.AuthenticodeVerifier();
+            _localExec = new UserDirExecutionGuard(
+                path => authenticode.EvaluateAsync(path).GetAwaiter().GetResult().IsTrusted,
+                pid => { using var p = System.Diagnostics.Process.GetProcessById(pid); p.Kill(); return true; },
+                CoreGuard.Ipc.ProcessAncestry.ImagePath);
+            _localExec.Blocked += b =>
+            {
+                _alerts.Publish(AlertSeverity.Critical, "Paranoïa", "Exécution bloquée",
+                    $"{Path.GetFileName(b.ImagePath)} (non signé, lancé depuis {Path.GetDirectoryName(b.ImagePath)}) : " +
+                    (b.Terminated ? "processus arrêté." : "arrêt impossible."));
+                Set(Paranoia, ModuleState.Active, LocalParanoiaText());
+                UiThread.Post(() => ModulesChanged?.Invoke());
+            };
+            _localExec.StartPolling(TimeSpan.FromMilliseconds(300));
+            _alerts.Publish(AlertSeverity.Warning, "Paranoïa", "Mode Paranoïa activé (sans service)",
+                "Exécutables non signés bloqués dans Téléchargements, %TEMP%, %APPDATA%. USB et pare-feu WFP : service CoreGuard requis.");
+        }
+        Set(Paranoia, ModuleState.Active, LocalParanoiaText());
+    }
+
+    private string LocalParanoiaText() =>
+        $"Sans service : exécution non signée depuis les dossiers utilisateur bloquée ({_localExec?.BlockedCount ?? 0} arrêt(s)) ; USB et WFP : service requis";
+
+    private bool StopLocalExec()
+    {
+        if (_localExec is null) return false;
+        _localExec.Dispose();
+        _localExec = null;
+        return true;
+    }
+
+    private void SetParanoiaFromService() =>
+        Set(Paranoia, _service.ParanoiaActive ? ModuleState.Active : ModuleState.Disabled,
+            _service.ParanoiaActive ? "Service : " + (_service.ParanoiaText ?? "actif") : "Désactivé");
+
+    private async Task EnableParanoiaViaServiceAsync()
+    {
+        if (Interlocked.Exchange(ref _paranoiaBusy, 1) == 1) return;
+        try
+        {
+            var result = await _service.EnableParanoiaAsync();
+            if (!result.Accepted)
+            {
+                _alerts.Publish(AlertSeverity.Warning, "Paranoïa", "Activation impossible", result.Message);
+                UiThread.Post(() => { _settings.ParanoiaEnabled = false; _store.Save(_settings); });
+            }
+        }
+        finally { Interlocked.Exchange(ref _paranoiaBusy, 0); }
+    }
+
+    // Thread UI : désactiver affaiblit la protection, le mot de passe de protection est demandé s'il est configuré
+    private void DisableParanoiaViaService()
+    {
+        if (Interlocked.Exchange(ref _paranoiaBusy, 1) == 1) return;
+        try
+        {
+            bool done;
+            if (_service.StopPasswordConfigured)
+            {
+                done = _dialogs.AskPassword("Désactiver le Mode Paranoïa",
+                    "Le Mode Paranoïa bloque l'USB, durcit le pare-feu et empêche les programmes non signés de se lancer depuis vos dossiers. " +
+                    "Saisissez le mot de passe de protection CoreGuard pour le désactiver.", "Désactiver", _service.DisableParanoiaAsync);
+            }
+            else
+            {
+                var result = _service.DisableParanoiaAsync(null).GetAwaiter().GetResult();
+                done = result.Accepted;
+                if (!done) _alerts.Publish(AlertSeverity.Warning, "Paranoïa", "Désactivation refusée", result.Message);
+            }
+            if (!done) { _settings.ParanoiaEnabled = true; _store.Save(_settings); } // refus ou annulation : le mode reste actif
+        }
+        finally { Interlocked.Exchange(ref _paranoiaBusy, 0); }
     }
 
     // ---- Utilitaires ----
@@ -369,6 +495,7 @@ public sealed class ProtectionService : IDisposable
             Stop(ref _clipboard, c => c.Dispose());
             Stop(ref _sensors, s => s.Dispose());
             Stop(ref _badUsb, m => m.Dispose());
+            StopLocalExec();
         }
     }
 }

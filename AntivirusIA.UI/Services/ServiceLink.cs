@@ -1,4 +1,4 @@
-using AntivirusIA.UI.Models;
+﻿using AntivirusIA.UI.Models;
 using CoreGuard.Ipc;
 
 namespace AntivirusIA.UI.Services;
@@ -68,6 +68,19 @@ public sealed class ServiceLink : IDisposable
     public Task<StopResult> EngageLockdownAsync(string reason, bool cutNetwork) => _client.EngageLockdownAsync(reason, cutNetwork);
 
     public Task<StopResult> RequestUnlockAsync(string password) => _client.RequestUnlockAsync(password);
+
+    /// <summary>Vrai si le service connecté sait appliquer le Mode Paranoïa (USB, WFP, blocage d'exécution).</summary>
+    public bool HandlesParanoia => IsConnected && _status!.Modules.Any(m => m.Name == ServiceModules.Paranoia && m.State != "Unavailable");
+
+    public bool ParanoiaActive => IsConnected && _status!.IsModuleActive(ServiceModules.Paranoia);
+
+    public string? ParanoiaText => _status?.Modules.FirstOrDefault(m => m.Name == ServiceModules.Paranoia)?.Text;
+
+    public bool StopPasswordConfigured => _status?.StopPasswordConfigured ?? false;
+
+    public Task<StopResult> EnableParanoiaAsync() => _client.EnableParanoiaAsync();
+
+    public Task<StopResult> DisableParanoiaAsync(string? password) => _client.DisableParanoiaAsync(password);
 
     /// <summary>Vrai si le service assure les canaris anti-ransomware.</summary>
     public bool HandlesCanaries => IsConnected && _status!.IsModuleActive(ServiceModules.Canaries);

@@ -1,4 +1,4 @@
-using System.Runtime.Versioning;
+﻿using System.Runtime.Versioning;
 using System.ServiceProcess;
 using CoreGuard.Ipc;
 using Microsoft.Extensions.Hosting.WindowsServices;
@@ -35,6 +35,7 @@ public static class ServiceHost
 
     public static string SecretPath => Path.Combine(DataDirectory, "protection.json");
     public static string LockdownStatePath => Path.Combine(DataDirectory, "lockdown.json");
+    public static string ParanoiaStatePath => Path.Combine(DataDirectory, "paranoia.json");
     public static string RemoteLockPath => Path.Combine(DataDirectory, "remote-lock.json");
 
     /// <summary>Pipe utilisé : celui du service installé, ou celui de développement (console / --dev).</summary>
@@ -155,8 +156,13 @@ public static class ServiceCli
         {
             ConsoleKeyInfo key = Console.ReadKey(intercept: true);
             if (key.Key == ConsoleKey.Enter) break;
-            if (key.Key == ConsoleKey.Backspace) { if (sb.Length > 0) sb.Length--; continue; }
-            if (!char.IsControl(key.KeyChar)) sb.Append(key.KeyChar);
+            if (key.Key == ConsoleKey.Backspace)
+            {
+                if (sb.Length > 0) { sb.Length--; Console.Write("\b \b"); }
+                continue;
+            }
+            // Un astérisque par caractère : l'utilisateur voit que la saisie est prise en compte
+            if (!char.IsControl(key.KeyChar)) { sb.Append(key.KeyChar); Console.Write('*'); }
         }
         Console.WriteLine();
         return sb.ToString();

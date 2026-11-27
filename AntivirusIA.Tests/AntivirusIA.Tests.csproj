@@ -15,6 +15,12 @@
     <ProjectReference Include="..\AntivirusIA.Core\AntivirusIA.Core.csproj" />
     <ProjectReference Include="..\AntivirusIA.Engines\AntivirusIA.Engines.csproj" />
     <ProjectReference Include="..\AntivirusIA.Infrastructure\AntivirusIA.Infrastructure.csproj" />
+    <ProjectReference Include="..\AntivirusIA.Ml\AntivirusIA.Ml.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Parité de l'extraction EMBER (générée par scripts/ml/train_ember_subset.py) -->
+    <None Include="Data/**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

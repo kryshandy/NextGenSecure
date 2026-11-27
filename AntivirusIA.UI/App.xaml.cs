@@ -102,6 +102,9 @@ public partial class App : Application
         services.AddSingleton<IDetectionEngine, HeuristicEngine>();
         services.AddSingleton<IDetectionEngine, EntropyAnalyzer>();
         services.AddSingleton<IDetectionEngine, PeStaticEngine>();
+        // IA niveau 1 : classifieur statique EMBER / ONNX (actif seulement si le modèle est livré)
+        if (AntivirusIA.Ml.EmberOnnxEngine.TryCreate(Path.Combine(AppContext.BaseDirectory, "Models", "ember-subset.onnx")) is { } ember)
+            services.AddSingleton<IDetectionEngine>(ember);
         services.AddSingleton<IFileTrustProvider, AuthenticodeVerifier>();
         services.AddSingleton(new ScoringService
         {

@@ -32,6 +32,7 @@
     <ProjectReference Include="..\CoreGuard.Ipc\CoreGuard.Ipc.csproj" />
     <ProjectReference Include="..\CoreGuard.Devices\CoreGuard.Devices.csproj" />
     <ProjectReference Include="..\CoreGuard.Vault\CoreGuard.Vault.csproj" />
+    <ProjectReference Include="..\AntivirusIA.Ml\AntivirusIA.Ml.csproj" />
   </ItemGroup>
 
   <ItemGroup>

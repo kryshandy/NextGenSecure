@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- IA niveau 1 : classifieur statique des exécutables (caractéristiques EMBER, modèle ONNX entraîné hors ligne). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AntivirusIA.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AntivirusIA.Core\AntivirusIA.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Modèle et métadonnées copiés à côté de l'exécutable -->
+    <None Include="Models\**" CopyToOutputDirectory="PreserveNewest" LinkBase="Models" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.32.0" />
+  </ItemGroup>
+
+</Project>

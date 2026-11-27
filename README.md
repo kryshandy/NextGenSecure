@@ -42,7 +42,7 @@ CoreGuard.sln
 ├─ AntivirusIA.Infrastructure Quarantaine chiffrée (AES-256-GCM, clé DPAPI), historique SQLite
 ├─ CoreGuard.RealTime         Temps réel : FileSystemWatcher, canaris anti-ransomware
 ├─ CoreGuard.Behavior         Comportement : ETW, client AMSI, gardien de persistance
-├─ CoreGuard.Network          Pare-feu Windows (COM), énumération ports, kill switch réseau — WFP natif prévu
+├─ CoreGuard.Network          Pare-feu natif WFP (FwpmFilterAdd0 par AppId), pare-feu Windows (COM), ports, kill switch
 ├─ CoreGuard.Response         Actions de réponse user-mode (IKernelActionProvider) : arrêt, suspension, ACL, DACL
 ├─ CoreGuard.Ipc              Canal UI ↔ service (named pipe local, ACL, vérification du serveur)
 ├─ CoreGuard.Service          Service Windows LocalSystem : ETW, canaris, analyse AMSI, auto-défense
@@ -65,7 +65,7 @@ CoreGuard.sln
 ✅ = disponible · 🟡 = partiel · ⏳ = prévu (détail dans [`docs/AUDIT.md`](docs/AUDIT.md))
 
 **Détection**
-- ✅ Scan à la demande (fichier / dossier récursif) + scan automatique des nouveaux téléchargements
+- ✅ Scan à la demande (fichier / dossier récursif) + **Smart Download Guard** : chaque nouveau téléchargement reçoit un verdict vert / orange / rouge (marque du Web `Zone.Identifier` : site d'origine, signature Authenticode, moteurs)
 - ✅ Signatures SHA-256 multi-sources (JSON + listes `.txt` issues de flux publics, dossier `%LocalAppData%\CoreGuard\signatures`)
 - ✅ **Règles de contenu** inspirées de YARA (texte, hex avec jokers, UTF-16, conditions) : EICAR, Mimikatz, contournement AMSI, suppression des clichés, notes de rançon, *download cradles*, vol d'identifiants navigateur, chargeurs réflectifs
 - ✅ **Analyse PE statique** (IAT pondérée, entropie et RWX par section, packers) ; un PE malformé est jugé suspect (échec sécurisé)
@@ -81,7 +81,7 @@ CoreGuard.sln
 - ✅ **Anti-ransomware** : canaris cachés dans les dossiers de chaque utilisateur, restauration immédiate, et **arrêt du processus coupable** identifié par l'audit NTFS (PID exact, événement 4663 ; activé par `install-service.ps1`). Sans audit : alerte et restauration, jamais d'arrêt sur supposition
 - ✅ **Mode arrière-plan** — icône dans la zone de notification (Ouvrir / Verrouiller le PC / Quitter), fermer la fenêtre la masque sans arrêter la protection, bulles Windows pour les alertes, lancement caché à l'ouverture de session (`--background`, sans admin), instance unique
 - ✅ **Gardien de persistance** (Run/RunOnce, tâches planifiées, dossier Démarrage, services 7045) — fenêtre **Autoriser / Bloquer** avec niveau de risque, retrait réel (fichier Démarrage mis en quarantaine), choix mémorisé
-- 🟡 Pare-feu : règles par application et **kill switch** via le pare-feu Windows ; WFP natif prévu
+- ✅ Pare-feu : **WFP natif** (filtres par AppId dans une sous-couche CoreGuard, session dynamique ou persistante) pour isoler un programme et pour le Mode Paranoïa ; kill switch via le pare-feu Windows
 - ✅ **Auto-défense** du service : DACL durcie (taskkill refusé), watchdog mutuel (chaque processus relance l'autre), `sc stop` refusé, arrêt uniquement par **mot de passe** (défi-réponse HMAC, verrouillage après 5 échecs)
 - ✅ **Moniteur BadUSB** : un faux clavier USB qui tape à une vitesse surhumaine (ou à un rythme de machine) est bloqué 10 s ; un nouveau clavier branché déclenche une alerte et une vigilance renforcée
 - ✅ **Verrouillage d'urgence du PC** : bouton, BadUSB détecté ou ordre à distance (dossier synchronisé, opt-in) ; écran CoreGuard plein écran, raccourcis système bloqués, clés USB et nouveaux périphériques refusés, réseau coupé en option ; déverrouillage devant le PC : **Ctrl+R** puis le mot de passe de protection
@@ -92,7 +92,7 @@ CoreGuard.sln
 - ✅ **Presse-papiers intelligent** (anti-crypto-clipper, vidage des secrets après 30 s)
 - ✅ **Privacy Guard** : alerte quand une application utilise la caméra ou le micro, bouton **Couper** (arrêt de l'application, retrait de l'autorisation) et interdiction aux applications de bureau en un clic
 - ✅ **Gestionnaire de mots de passe** : page « Coffre-fort » (Argon2id + AES-256-GCM, générateur, verrouillage auto), auto-remplissage par l'extension sans presse-papiers, refusé à tout programme qui n'est pas lancé par un navigateur signé
-- 🟡 **Mode Paranoïa** (interrupteur sans action réelle)
+- ✅ **Mode Paranoïa** : USB bloqué, WFP (entrées refusées, mshta/certutil/bitsadmin… coupés d'Internet), tout exécutable non signé lancé depuis Téléchargements / %TEMP% / %APPDATA% arrêté au démarrage (ETW) ; désactivation protégée par le mot de passe de protection ; sans service, l'application bloque seule l'exécution
 - ✅ **Anti-phishing** : base de confiance **locale** (100 000 domaines Tranco, Public Suffix List, liste noire OpenPhish, mise à jour optionnelle désactivée par défaut), règles d'URL (homographes, typosquatting, IP, marque en sous-domaine, http), page d'interception « CoreGuard n'aime pas ce site » et fenêtre « CoreGuard doute de ce site » ; seul l'utilisateur peut déclarer un site de confiance, confirmé dans CoreGuard ; installation : `./scripts/install-browser-extension.ps1`
 - ✅ **Anti-phishing visuel + IA** : OCR (`Windows.Media.Ocr`) + QR (quishing) dès qu'un mot de passe est demandé sur un site non connu, puis revue de la zone grise par l'**IA locale** (Llama 3.2 3B), qui ne peut qu'aggraver le verdict, et seulement sur indice objectif (marque usurpée, données sensibles) ; mesure sur 19 cas : règles seules 9/11 arnaques, règles + IA 11/11, 0 fausse alerte (`dotnet run --project demo/10-phishing-ia/eval`)
 

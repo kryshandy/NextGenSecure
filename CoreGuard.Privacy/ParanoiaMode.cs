@@ -1,6 +1,16 @@
-namespace CoreGuard.Privacy;
+﻿namespace CoreGuard.Privacy;
 
-/// <summary>Intentions de durcissement ; leur application réelle est câblée par la couche service.</summary>
+/// <summary>
+/// Politique du Mode Paranoïa. Appliquée réellement par le service CoreGuard (SYSTEM) :
+/// <list type="bullet">
+/// <item><see cref="BlockNewUsb"/> : clés et disques USB refusés (pilote USBSTOR désactivé) ;</item>
+/// <item><see cref="StrictFirewall"/> : WFP natif — connexions entrantes refusées (hors trafic local) et sortie
+///       Internet coupée pour les outils système détournés par les malwares (mshta, certutil, bitsadmin…) ;</item>
+/// <item><see cref="BlockExecFromUserDirs"/> : tout exécutable non signé lancé depuis Téléchargements, %TEMP%,
+///       %APPDATA% ou C:\Users\Public est arrêté dès son démarrage (CoreGuard.Behavior.UserDirExecutionPolicy).</item>
+/// </list>
+/// Sans service, l'application applique seule le blocage d'exécution (scrutation, sans droits administrateur).
+/// </summary>
 public sealed record HardeningPolicy(bool BlockNewUsb, bool StrictFirewall, bool BlockExecFromUserDirs)
 {
     public static readonly HardeningPolicy Off = new(false, false, false);

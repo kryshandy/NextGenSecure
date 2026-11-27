@@ -138,6 +138,21 @@ Ces spécimens s'exécutent (côté « attaque »), mais la **capture automatiqu
 - **Comment tester :** `dotnet test CoreGuard.Vault.Tests` (11 tests : création, déverrouillage, mauvais mot de passe, round-trip chiffrement, générateur).
 - **Statut : ✅ module actif / ⚠️ pas de page UI** — le coffre fonctionne (Argon2id + AES-256-GCM) mais n'a pas encore d'écran dédié dans l'interface.
 
+### US-20 — Smart Download Guard (vert / orange / rouge)
+- **Comment tester :** CoreGuard ouvert (ou en arrière-plan), puis `./demo/11-telechargement/demo-telechargement.ps1` (4 fichiers de test avec une marque du Web identique à celle d'un navigateur). Nettoyage : `-Nettoyer`.
+- **Résultat attendu :** `outil.exe` orange (non signé, venu d'Internet, site affiché), `facture.js` orange ou rouge, `cours.pdf` vert (alerte simple), `restreint.txt` rouge (site restreint) ; bouton « Mettre en quarantaine ».
+- **Statut : ✅ actif et vérifié en réel.**
+
+### US-21 — Mode Paranoïa
+- **Comment tester :** activer « Mode paranoïa » (tableau de bord), puis `./demo/12-paranoia/demo-paranoia.ps1` (programme non signé lancé depuis Téléchargements).
+- **Résultat attendu :** « RESULTAT : arrêté par CoreGuard » et alerte « Exécution bloquée ». Avec le service à jour : USB bloqué (`reg query HKLM\SYSTEM\CurrentControlSet\Services\USBSTOR /v Start` → 4), filtres WFP « CoreGuard » (`netsh wfp show filters`, admin) ; désactiver demande le mot de passe de protection.
+- **Statut : ✅ actif** (blocage d'exécution vérifié en réel sans service).
+
+### US-22 — Pare-feu natif WFP
+- **Comment tester :** console **administrateur** : `dotnet run --project demo/13-pare-feu-wfp` (option `--bouclier`).
+- **Résultat attendu :** curl réussit, puis échoue tant que le filtre WFP par AppId existe, puis réussit de nouveau à la fermeture de la session (filtres retirés par Windows). Test automatisé : `dotnet test CoreGuard.Network.Tests` (blocage réel en administrateur ; identifiants des couches vérifiés même sans droits).
+- **Statut : ✅ vérifié en console administrateur.**
+
 ### US-19 — Protection permanente en arrière-plan
 - **…je veux** que CoreGuard continue de me protéger quand je ferme sa fenêtre et qu'il redémarre avec Windows.
 - **Comment tester :** fermer la fenêtre (croix) → bulle « CoreGuard reste actif », l'icône reste près de l'horloge. Lancer `./demo/03-persistance/demo-persistance.ps1` fenêtre fermée → fenêtres « Autoriser / Bloquer » + bulle « CoreGuard - Persistance ». Relancer l'exécutable → la fenêtre existante revient (pas de seconde instance). Clic droit sur l'icône → Ouvrir / Verrouiller le PC / Quitter (confirmation). `reg query HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v CoreGuard` montre la commande `--background` ; se déconnecter / reconnecter → CoreGuard démarre caché.
@@ -157,6 +172,9 @@ Depuis la racine du dépôt. Détails complets : `demo/README.md`.
 | `04-badusb-hid` | `dotnet run --project .\demo\04-badusb-hid` | frappe HID rapide | 🔜 à venir | `Échap` / fermer |
 | `05-crypto-clipper` | `dotnet run --project .\demo\05-crypto-clipper` | presse-papiers | ✅ actif | `Ctrl+C` / 60 s |
 | `06-phishing-visuel` | `./demo/06-phishing-visuel/serve-phishing-demo.ps1` | OCR phishing (image seule) | ✅ bouton « Analyser cette page » | `Ctrl+C` / `/stop` |
+| `11-telechargement` | `./demo/11-telechargement/demo-telechargement.ps1` | Smart Download Guard | ✅ actif | `-Nettoyer` |
+| `12-paranoia` | `./demo/12-paranoia/demo-paranoia.ps1` | Mode Paranoïa (blocage d'exécution) | ✅ actif | `-Nettoyer` |
+| `13-pare-feu-wfp` | `dotnet run --project demo/13-pare-feu-wfp` (admin) | WFP natif | ✅ actif | session dynamique : rien à nettoyer |
 | `10-phishing-ia` | `dotnet run --project demo/10-phishing-ia/eval` ; `./demo/10-phishing-ia/serve-phishing-lab.ps1` | base de confiance, OCR, IA locale, liste noire | ✅ actif | `Ctrl+C` / `/stop` (entrée de liste noire retirée) |
 | `07-vol-identifiants` | `./demo/07-vol-identifiants/demo-infostealer.ps1` | accès `Login Data` | 🔜 à venir | `-Nettoyer` |
 
