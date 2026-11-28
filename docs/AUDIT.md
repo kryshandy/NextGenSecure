@@ -7,7 +7,7 @@
 | Point | Constat |
 |---|---|
 | Compilation | `dotnet build AntivirusIA.slnx` : **0 erreur, 0 avertissement** (18 projets). |
-| Tests | `dotnet test` : **434 tests verts** (84 socle + 75 Extension + 66 Behavior + 52 Ipc + 39 Service + 28 Privacy + 21 RealTime + 18 Devices + 13 Memory + 11 Vault + 10 Network + 10 Response + 7 AmsiProvider sur la DLL native réelle). |
+| Tests | `dotnet test` : **461 tests verts** (89 socle et IA niveau 1 + 77 Behavior + 75 Extension + 53 Ipc + 39 Service + 30 RealTime + 28 Privacy + 18 Devices + 13 Memory + 11 Network + 11 Vault + 10 Response + 7 AmsiProvider) ; 1 test ignoré hors administrateur (blocage WFP réel), réussi en console administrateur. |
 | Ring 0 | Aucun code ne référence de driver : rien ne bloque sans `CoreGuard.Driver`. L'abstraction **`IKernelActionProvider`** (Core) est en place, avec **`UserModeActionProvider`** (CoreGuard.Response) câblé par défaut. |
 | Composants | Les 3 composants existent. **`CoreGuard.Service`** (Worker Service LocalSystem, session 0) héberge la télémétrie ETW et la réponse associée ; l'UI s'y connecte par named pipe et garde les modules liés à la session (presse-papiers, caméra/micro, canaris, téléchargements, persistance HKCU). Sans service, l'UI reprend ETW elle-même. |
 | Framework | Le code cible **.NET 10** (LTS), pas .NET 8/9. Aucune raison de redescendre : .NET 10 est la LTS actuelle et toutes les dépendances le supportent. |
@@ -23,7 +23,7 @@ Légende des états : **Complet** (fait ce que la spec demande) · **Partiel** (
 |---|---|---|---|---|
 | 1 | Scan statique PE | `AntivirusIA.Engines/PeStaticEngine.cs` | **Complet** | Entropie par section, RWX, déséquilibre virtuel/brut, IAT pondérée, PE malformé = suspect. |
 | — | Signatures, règles de contenu, Authenticode | `SignatureEngine.cs`, `PatternRuleEngine.cs`, `Data/rules.json`, `AuthenticodeVerifier.cs` | **Complet** | Base de signatures livrée minimale (EICAR) : à alimenter avec un flux public (format `.txt` supporté). |
-| 2 | IA niveau 1 (EMBER / ONNX) | — | **Absent** | Pas de package `Microsoft.ML.OnnxRuntime`, pas de modèle, pas d'extraction de features EMBER. Le README l'annonçait à tort. |
+| 2 | IA niveau 1 (EMBER / ONNX) | `AntivirusIA.Ml/EmberFeatures.cs`, `EmberOnnxEngine.cs`, `Models/ember-subset.onnx`, `scripts/ml/train_ember_subset.py` | **Complet** | Sous-ensemble EMBER calculable sur les octets (616 caractéristiques : histogramme, histogramme d'entropie, chaînes), identique à la référence (test de parité). LightGBM entraîné sur 199 541 fichiers EMBER 2018, exporté en ONNX, ONNX Runtime en C#. Test EMBER (100 561 fichiers) : AUC 0,980 ; seuil bas 84,1 % détectés / 1,92 % de fausses alertes ; seuil haut 62,7 % / 0,23 %. System32 (2 177 fichiers sains) : 0 alerte au seuil haut. ≈ 17 ms par fichier (budget 50 ms). Indice heuristique (+20 / +40 points), atténué si le fichier est signé. |
 | 3 | IA niveau 2 (LLM explication) | `AntivirusIA.AI/*` | **Complet** | LLamaSharp + Llama 3.2 3B GGUF, repli local si modèle absent, ne décide jamais. Désobfuscation de scripts non câblée (prompt d'explication seulement). |
 | 4 | AMSI | `CoreGuard.AmsiProvider/*`, `CoreGuard.Service/ScriptScanner.cs` | **Complet (à valider installé)** | **Fournisseur AMSI** natif (NativeAOT, serveur COM `IAntimalwareProvider`) chargé par amsi.dll dans PowerShell, wscript/cscript, Office… : il transmet chaque contenu au service (pipe, 150 ms), qui applique les règles au texte et au Base64 décodé et répond « bloquer » (score ≥ 60 ou preuve forte). Fail-open si le service est absent. Testé sur la DLL native réelle (spécimen 01 bloqué de bout en bout). Restes : pas de version 32 bits, signature Authenticode non faite (Windows peut ignorer un fournisseur non signé), pas d'explication par le LLM dans le service. |
 | 5 | ETW comportemental | `EtwProcessMonitor.cs`, `BehaviorRuleEngine.cs` | **Partiel** | Règles Office→shell (+ Base64), `vssadmin`/`wmic`/`diskshadow`/WMI, persistance par ligne de commande : OK et testées. La suppression des clichés est **arrêtée par `TerminateProcess`** (PID exact fourni par ETW) ; les autres règles alertent seulement. Exige l'admin ; l'arrêt suit le démarrage (une commande très rapide peut avoir agi avant). |
@@ -92,7 +92,7 @@ public interface IKernelActionProvider
 | Package demandé | Présent | Remarque |
 |---|---|---|
 | `Microsoft.Diagnostics.Tracing.TraceEvent` | ✅ 4.0.2 | CoreGuard.Behavior |
-| `Microsoft.ML.OnnxRuntime` | ❌ | À ajouter avec le modèle EMBER |
+| `Microsoft.ML.OnnxRuntime` | ✅ 1.32 | Modèle EMBER (`AntivirusIA.Ml`) |
 | `LLamaSharp` (+ `Backend.Cpu`) | ✅ 0.30.0 | AntivirusIA.AI |
 | `System.Reflection.PortableExecutable` | ✅ intégré au runtime | Aucun package nécessaire sur .NET 10 |
 | `ZXing.Net` | ✅ 0.16.10 | CoreGuard.Extension |
@@ -132,6 +132,6 @@ Chaque étape est livrable et testable seule ; l'ordre minimise les dépendances
 9. ✅ **Privacy Guard actif** : bouton « Couper » (arrêt de l'application + refus d'accès quand Windows le permet), interdiction globale caméra/micro aux applications de bureau dans Réglages. *Fait le 27/11/2026.*
 10. ✅ **Persistance interactive** : pop-up Autoriser/Bloquer, retrait de la valeur Run / de la tâche, dossier Startup, explication LLM en une ligne. *Scénario 9.*
 11. ✅ **Extension** : script d'installation de l'hôte (fait), coffre branché à l'auto-remplissage (fait), vérification des pages à la navigation et bandeau (fait) ; reste : relayer les verdicts de l'extension dans l'interface CoreGuard. *Mis à jour le 27/11/2026.*
-12. **IA niveau 1** : extraction de features EMBER (sous-ensemble), modèle ONNX entraîné hors ligne, `OnnxRuntime`, budget < 50 ms ; **WFP natif** (`FwpmFilterAdd0` par AppId) ; **Mode Paranoïa réel** ; **Zone.Identifier** dans le Download Guard.
+12. ✅ **IA niveau 1** : extraction de features EMBER (sous-ensemble), modèle ONNX entraîné hors ligne, `OnnxRuntime`, budget < 50 ms ; **WFP natif** (`FwpmFilterAdd0` par AppId) ; **Mode Paranoïa réel** ; **Zone.Identifier** dans le Download Guard.
 
 Les étapes 1 à 4 sont le chemin critique : sans service ni réponse réelle, aucune démo ne montre un **blocage**.

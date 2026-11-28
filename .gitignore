@@ -365,6 +365,8 @@ FodyWeavers.xsd
 /models/
 *.gguf
 *.onnx
+# Modèle IA niveau 1 (2,4 Mo, entraîné par scripts/ml/train_ember_subset.py) : livré avec CoreGuard
+!AntivirusIA.Ml/Models/ember-subset.onnx
 vault.cgdb
 quarantine/
 

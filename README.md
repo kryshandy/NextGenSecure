@@ -38,7 +38,8 @@ Résultat : un dossier unique `publish/CoreGuard` qui fonctionne hors-ligne.
 CoreGuard.sln
 ├─ AntivirusIA.Core           Contrats, modèles, pipeline de scan, scoring
 ├─ AntivirusIA.Engines        Moteurs : signatures, règles de contenu, entropie, heuristiques, PE statique, Authenticode
-├─ AntivirusIA.AI             IA : LLM local (LLamaSharp) — classifieur ONNX (EMBER) prévu
+├─ AntivirusIA.AI             IA : LLM local (LLamaSharp) pour les explications et l'anti-phishing
+├─ AntivirusIA.Ml             IA niveau 1 : caractéristiques EMBER + modèle LightGBM exporté en ONNX (ONNX Runtime)
 ├─ AntivirusIA.Infrastructure Quarantaine chiffrée (AES-256-GCM, clé DPAPI), historique SQLite
 ├─ CoreGuard.RealTime         Temps réel : FileSystemWatcher, canaris anti-ransomware
 ├─ CoreGuard.Behavior         Comportement : ETW, client AMSI, gardien de persistance
@@ -73,7 +74,7 @@ CoreGuard.sln
 - ✅ **IA niveau 2** — LLM local (Llama 3.2 3B via LLamaSharp) : explique les alertes, **ne décide jamais** du blocage
 - 🟡 **ETW** — règles Office→shell (Base64), `vssadmin`/`wmic`/`diskshadow`, persistance (droits admin requis ; alerte sans blocage)
 - ✅ **AMSI** — fournisseur natif enregistré auprès de Windows : chaque script PowerShell / VBScript / JScript / macro est analysé par le service **avant exécution** (règles + Base64 décodé) et bloqué s'il est malveillant. Compilation : `scripts/build-amsi-provider.ps1` (outils C++ de Visual Studio) ; enregistrement par `install-service.ps1`
-- ⏳ **IA niveau 1** — classifieur statique ONNX (type EMBER), scoring < 50 ms
+- ✅ **IA niveau 1** — classifieur statique des exécutables entraîné sur EMBER 2018 (LightGBM → ONNX) : AUC 0,980 sur 100 561 fichiers de test, 0 fausse alerte au seuil haut sur les 2 177 exécutables Windows de la machine, ≈ 17 ms par fichier ; détails et méthode : [`docs/IA-ENTRAINEMENT.md`](docs/IA-ENTRAINEMENT.md)
 
 **Réaction / protection**
 - ✅ Quarantaine **AES-256-GCM** authentifiée, clé protégée par **DPAPI**, droits NTFS restreints (exécution refusée), restauration refusée si le fichier est altéré
@@ -146,7 +147,7 @@ dotnet run --project AntivirusIA.UI
 dotnet test AntivirusIA.slnx
 ```
 
-434 tests MSTest (moteurs, quarantaine, règles, comportement, réseau, réponse, IPC, service, fournisseur AMSI natif, vie privée, coffre, extension). Procédure de test manuelle : [`docs/TESTING.md`](docs/TESTING.md).
+461 tests MSTest (moteurs, IA niveau 1 EMBER/ONNX, quarantaine, règles, comportement, réseau, réponse, IPC, service, fournisseur AMSI natif, vie privée, coffre, extension). Procédure de test manuelle : [`docs/TESTING.md`](docs/TESTING.md).
 
 ---
 

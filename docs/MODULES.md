@@ -11,6 +11,7 @@ Chaque module est un projet isolé qui ne référence que `AntivirusIA.Core`. Le
 | `AntivirusIA.AI` | LLM local (LLamaSharp) pour l'explication ; classifieur ONNX EMBER prévu | Partiel |
 | `AntivirusIA.Infrastructure` | Quarantaine AES-256-GCM (clé DPAPI, ACL NTFS), historique SQLite | Complet |
 | `CoreGuard.RealTime` | Surveillance de dossiers (`FileSystemWatcher`), canaris cachés anti-ransomware, attribution par audit NTFS (événement 4663) | Complet |
+| `AntivirusIA.Ml` | IA niveau 1 : caractéristiques EMBER (616), modèle LightGBM exporté en ONNX, moteur `EmberOnnxEngine` | Complet (AUC 0,980 sur le test EMBER) |
 | `CoreGuard.Behavior` | ETW processus, règles comportementales, client AMSI, gardien de persistance (évaluation du risque, retrait Run/tâche/service) | Partiel (suppression des clichés arrêtée, autres règles en alerte) |
 | `CoreGuard.Network` | Pare-feu Windows (COM), ports, kill switch ; WFP natif prévu | Partiel |
 | `CoreGuard.Response` | `UserModeActionProvider` : implémentation user-mode de `IKernelActionProvider` (arrêt, suspension, blocage réseau, ACL NTFS, DACL de processus) | Complet (étape 1) |

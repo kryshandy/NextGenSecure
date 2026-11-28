@@ -1,0 +1,14 @@
+{
+  "features": 616,
+  "thresholdLow": 0.8234439507000392,
+  "thresholdHigh": 0.9679931682436483,
+  "testAuc": 0.9797614207499238,
+  "testFprLow": 0.019234981382290278,
+  "testTprLow": 0.8413587604290822,
+  "testFprHigh": 0.002329702714004102,
+  "testTprHigh": 0.6265593961064759,
+  "trainSamples": 199541,
+  "testSamples": 100561,
+  "trainedOn": "EMBER 2018 v2 (sous-ensemble octets/entropie/chaînes, colonnes 0-615)",
+  "version": "2026-11-27"
+}

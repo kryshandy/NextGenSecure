@@ -153,6 +153,12 @@ Ces spécimens s'exécutent (côté « attaque »), mais la **capture automatiqu
 - **Résultat attendu :** curl réussit, puis échoue tant que le filtre WFP par AppId existe, puis réussit de nouveau à la fermeture de la session (filtres retirés par Windows). Test automatisé : `dotnet test CoreGuard.Network.Tests` (blocage réel en administrateur ; identifiants des couches vérifiés même sans droits).
 - **Statut : ✅ vérifié en console administrateur.**
 
+### US-23 — IA niveau 1 (classifieur statique EMBER / ONNX)
+- **Comment tester :** `dotnet test AntivirusIA.Tests --filter EmberModelTests` (parité avec la référence EMBER, probabilité ONNX identique à Python, fichiers Windows non signalés, budget de temps) ; analyser un exécutable depuis la page Analyse : l'indice « IA niveau 1 (EMBER / ONNX) » apparaît s'il dépasse un seuil.
+- **Réentraîner :** `python scripts/ml/train_ember_subset.py <ember_dataset_2018_2.tar.bz2> AntivirusIA.Ml/Models AntivirusIA.Tests/Data/ember-parity.json` (packages : numpy, lightgbm, scikit-learn, onnx, onnxmltools, onnxruntime).
+- **Résultats :** AUC 0,980 sur 100 561 fichiers de test ; 0 alerte au seuil haut sur 2 177 exécutables Windows sains ; ≈ 17 ms par fichier. Méthode et limites : `docs/IA-ENTRAINEMENT.md`.
+- **Statut : ✅ actif.**
+
 ### US-19 — Protection permanente en arrière-plan
 - **…je veux** que CoreGuard continue de me protéger quand je ferme sa fenêtre et qu'il redémarre avec Windows.
 - **Comment tester :** fermer la fenêtre (croix) → bulle « CoreGuard reste actif », l'icône reste près de l'horloge. Lancer `./demo/03-persistance/demo-persistance.ps1` fenêtre fermée → fenêtres « Autoriser / Bloquer » + bulle « CoreGuard - Persistance ». Relancer l'exécutable → la fenêtre existante revient (pas de seconde instance). Clic droit sur l'icône → Ouvrir / Verrouiller le PC / Quitter (confirmation). `reg query HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v CoreGuard` montre la commande `--background` ; se déconnecter / reconnecter → CoreGuard démarre caché.
