@@ -52,8 +52,11 @@ public sealed class Installer(string payloadDir, Action<string> log)
         StopRunning(o.CurrentPassword);
         progress.Report(15);
 
+        InstallVcRuntime();
+
         log("Copie de l'application, du modèle d'IA local et du modèle EMBER/ONNX…");
         CopyDirectory(Path.Combine(payloadDir, "App"), Path.Combine(InstallDir, "App"));
+        CopyModelFromSetupFolder();
         progress.Report(55);
         foreach (string part in new[] { "Docs", "Demo", "Extension" })
             if (Directory.Exists(Path.Combine(payloadDir, part))) CopyDirectory(Path.Combine(payloadDir, part), Path.Combine(InstallDir, part));
@@ -72,6 +75,44 @@ public sealed class Installer(string payloadDir, Action<string> log)
         RegisterUninstall();
         progress.Report(100);
         log("Installation terminée.");
+    }
+
+    public const string ModelFile = "Llama-3.2-3B-Instruct-Q4_K_M.gguf";
+
+    /// <summary>Le modèle d'IA local est-il fourni (dans la charge utile ou à côté de l'installateur) ?</summary>
+    public bool ModelAvailable() =>
+        File.Exists(Path.Combine(payloadDir, "App", "models", ModelFile)) || File.Exists(Path.Combine(SetupFolder, ModelFile));
+
+    private string SetupFolder => Path.GetDirectoryName(Path.GetFullPath(payloadDir))!;
+
+    // Runtime C++ de Microsoft (ONNX Runtime, llama.cpp) : les DLL sont déjà à côté de l'application ; l'installateur
+    // officiel est lancé en plus pour les autres programmes qui en dépendraient. 1638 = version plus récente déjà là.
+    private void InstallVcRuntime()
+    {
+        string vcredist = Path.Combine(payloadDir, "Redist", "vc_redist.x64.exe");
+        if (!File.Exists(vcredist)) return;
+        log("Runtime Visual C++ (requis par l'IA locale)…");
+        int code = Run(vcredist, "/install /quiet /norestart");
+        log(code is 0 or 1638 or 3010 ? "   runtime Visual C++ présent." : $"   installateur Visual C++ : code {code} (les DLL locales de l'application suffisent).");
+    }
+
+    // Release GitHub : le modèle (2 Go) est un fichier séparé, placé à côté de CoreGuard-Setup.exe
+    private void CopyModelFromSetupFolder()
+    {
+        string target = Path.Combine(InstallDir, "App", "models", ModelFile);
+        if (File.Exists(target)) return;
+        string beside = Path.Combine(SetupFolder, ModelFile);
+        if (File.Exists(beside))
+        {
+            log("Copie du modèle d'IA local fourni à côté de l'installateur…");
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(beside, target, overwrite: true);
+        }
+        else
+        {
+            log($"ATTENTION : modèle d'IA {ModelFile} absent. CoreGuard fonctionne, mais sans explications par l'IA : " +
+                $"le placer plus tard dans {Path.GetDirectoryName(target)}.");
+        }
     }
 
     // ---------------------------------------------------------------- arrêt de l'existant

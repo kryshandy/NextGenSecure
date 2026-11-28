@@ -7,11 +7,17 @@ comment l'installer, l'utiliser, le tester, et comment le code est organisé.
 
 ## 1. Installer
 
-1. Copier le dossier `CoreGuard-Setup` (construit par `./scripts/build-setup.ps1`) sur le PC.
+1. Récupérer l'installateur complet, au choix :
+   - **local** : `artifacts\CoreGuard-Setup-1.0.0-complet.zip` (construit par `./scripts/build-setup.ps1`, ~2,9 Go, tout
+     inclus, modèle d'IA compris) ou le dossier `artifacts\CoreGuard-Setup` ;
+   - **GitHub** (*Releases*) : `CoreGuard-Setup-<version>.zip` + `Llama-3.2-3B-Instruct-Q4_K_M.gguf` (GitHub limite un
+     fichier à 2 Go) ; décompresser le zip et placer le `.gguf` **à côté de `CoreGuard-Setup.exe`**.
+   Décompresser sur le PC cible.
 2. Lancer **`CoreGuard-Setup.exe`** (accepter la demande d'administrateur).
 3. **Mot de passe de protection** (8 caractères minimum) : il sera demandé pour arrêter CoreGuard, désactiver le Mode
    Paranoïa, associer un téléphone. Un logiciel malveillant ne peut donc pas couper la protection.
-4. Laisser les options cochées → **Installer**. Rien n'est téléchargé : l'IA locale (2 Go) est dans l'installateur.
+4. Laisser les options cochées → **Installer**. Rien n'est téléchargé : l'IA locale (2 Go), le runtime .NET et le runtime
+   Visual C++ (requis par ONNX Runtime et llama.cpp, installé silencieusement) sont dans l'installateur.
 
 Désinstaller : *Paramètres Windows > Applications > CoreGuard*, ou menu Démarrer > *Désinstaller CoreGuard*
 (mot de passe de protection demandé).

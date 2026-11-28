@@ -1,0 +1,82 @@
+name: Release complète
+
+# Construit l'installateur hors ligne complet et le publie dans une release GitHub.
+# Déclenchement : push d'un tag v* (ex. v1.0.0) ou lancement manuel (onglet Actions).
+# Limite GitHub : 2 Go par fichier. Le modèle d'IA (~1,9 Go) est donc publié à part :
+#   CoreGuard-Setup-<version>.zip      installateur complet (application, service, AMSI, extension, docs, démos, runtime C++)
+#   Llama-3.2-3B-Instruct-Q4_K_M.gguf  modèle d'IA local, à placer à côté de CoreGuard-Setup.exe
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (ex. 1.0.0)'
+        required: true
+        default: '1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Version
+        id: v
+        shell: pwsh
+        run: |
+          $v = if ('${{ github.ref_type }}' -eq 'tag') { '${{ github.ref_name }}'.TrimStart('v') } else { '${{ inputs.version }}' }
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Tests
+        continue-on-error: true
+        shell: pwsh
+        run: dotnet test AntivirusIA.slnx -c Release --nologo -v quiet
+
+      - name: Modèle d'IA local (Hugging Face)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force models | Out-Null
+          curl.exe -L --fail --retry 3 -o models/Llama-3.2-3B-Instruct-Q4_K_M.gguf `
+            https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf
+
+      - name: Installateur hors ligne
+        shell: pwsh
+        run: ./scripts/build-setup.ps1 -Version ${{ steps.v.outputs.version }} -SansZip
+
+      - name: Archives de la release
+        shell: pwsh
+        run: |
+          $v = '${{ steps.v.outputs.version }}'
+          New-Item -ItemType Directory -Force release | Out-Null
+          Move-Item artifacts/CoreGuard-Setup/payload/App/models/Llama-3.2-3B-Instruct-Q4_K_M.gguf release/
+          & tar.exe -a -c -f "release/CoreGuard-Setup-$v.zip" -C artifacts CoreGuard-Setup
+          if ($LASTEXITCODE -ne 0) { throw "zip échoué" }
+          Get-ChildItem release | Format-Table Name, Length
+
+      - name: Publication
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.v.outputs.version }}
+          name: CoreGuard ${{ steps.v.outputs.version }}
+          body: |
+            ## Installation (hors ligne, rien d'autre à télécharger)
+            1. Télécharger **CoreGuard-Setup-${{ steps.v.outputs.version }}.zip** et **Llama-3.2-3B-Instruct-Q4_K_M.gguf**.
+            2. Décompresser le zip, puis placer le fichier `.gguf` **à côté de `CoreGuard-Setup.exe`**.
+            3. Lancer `CoreGuard-Setup.exe` (administrateur), choisir le mot de passe de protection, Installer.
+
+            Le zip contient : application (runtime .NET inclus), service SYSTEM, fournisseur AMSI, hôte et extension navigateur,
+            runtime Visual C++, modèle EMBER/ONNX, documentation (GUIDE, TESTING) et spécimens de démonstration inoffensifs.
+            Sans le `.gguf`, CoreGuard fonctionne sans les explications de l'IA locale.
+          files: |
+            release/CoreGuard-Setup-${{ steps.v.outputs.version }}.zip
+            release/Llama-3.2-3B-Instruct-Q4_K_M.gguf

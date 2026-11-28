@@ -19,10 +19,14 @@ lui-même, une **extension navigateur** anti-phishing avec coffre-fort, et un **
 
 ## Installer (sans rien télécharger)
 
-1. Construire l'installateur une fois, sur la machine de développement : `./scripts/build-setup.ps1`
-   → `artifacts\CoreGuard-Setup\` (~2,6 Go : application, runtime .NET, **modèle d'IA local**, modèle ONNX, service,
-   fournisseur AMSI, extension, guide, spécimens de démonstration).
-2. Copier ce dossier sur le PC cible et lancer **`CoreGuard-Setup.exe`** : choisir le **mot de passe de protection**,
+1. Obtenir l'installateur complet hors ligne :
+   - **en local** : `./scripts/build-setup.ps1` → `artifacts\CoreGuard-Setup\` **et** l'archive unique
+     `artifacts\CoreGuard-Setup-1.0.0-complet.zip` (~2,9 Go : application, runtime .NET, runtime Visual C++,
+     **modèle d'IA local**, modèle ONNX, service, fournisseur AMSI, extension, guide, spécimens de démonstration) ;
+   - **depuis GitHub** : page *Releases*, construite par GitHub Actions (`.github/workflows/release.yml`, à chaque tag
+     `v*`) : `CoreGuard-Setup-<version>.zip` + `Llama-3.2-3B-Instruct-Q4_K_M.gguf` à placer à côté de
+     `CoreGuard-Setup.exe` (un fichier GitHub est limité à 2 Go, d'où le modèle à part).
+2. Décompresser sur le PC cible et lancer **`CoreGuard-Setup.exe`** : choisir le **mot de passe de protection**,
    garder les options, *Installer*. Désinstallation : *Paramètres Windows > Applications > CoreGuard*.
 3. Extension navigateur : `edge://extensions` > *Mode développeur* > *Charger l'extension non empaquetée* >
    `C:\Program Files\CoreGuard\Extension`.

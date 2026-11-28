@@ -19,7 +19,9 @@
 #>
 param(
     [string]$OutDir = (Join-Path $PSScriptRoot '..\artifacts\CoreGuard-Setup'),
-    [switch]$SansAmsi
+    [string]$Version = '1.0.0',
+    [switch]$SansAmsi,
+    [switch]$SansZip
 )
 
 $ErrorActionPreference = 'Stop'
@@ -40,6 +42,20 @@ New-Item -ItemType Directory -Force $payload | Out-Null
 
 Write-Host "[1/8] Application (runtime .NET inclus)" -ForegroundColor Cyan
 Publier 'AntivirusIA.UI\AntivirusIA.UI.csproj' (Join-Path $payload 'App')
+
+# Runtime C++ de Microsoft : requis par ONNX Runtime et llama.cpp (IA locale). Copié à côté de l'application
+# (déploiement local autorisé par la licence des redistribuables) ET installateur officiel lancé par le setup.
+$vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
+$vcredist = Get-ChildItem (Join-Path $vs 'VC\Redist\MSVC') -Recurse -Filter 'vc_redist.x64.exe' | Sort-Object FullName -Descending | Select-Object -First 1
+if (-not $vcredist) { throw "Redistribuables Visual C++ introuvables (installer la charge de travail C++ de Visual Studio)." }
+$redistX64 = Get-ChildItem (Join-Path $vs 'VC\Redist\MSVC') -Directory | Where-Object { Test-Path (Join-Path $_.FullName 'x64') } |
+    Sort-Object Name -Descending | Select-Object -First 1
+foreach ($crt in Get-ChildItem (Join-Path $redistX64.FullName 'x64') -Directory | Where-Object { $_.Name -match '\.(CRT|OpenMP)$' }) {
+    Copy-Item (Join-Path $crt.FullName '*.dll') (Join-Path $payload 'App\')
+}
+New-Item -ItemType Directory -Force (Join-Path $payload 'Redist') | Out-Null
+Copy-Item $vcredist.FullName (Join-Path $payload 'Redist\')
+Write-Host "  runtime C++ $($redistX64.Name) inclus (DLL locales + vc_redist.x64.exe)" -ForegroundColor DarkGray
 
 Write-Host "[2/8] Modèle d'IA local (~2 Go)" -ForegroundColor Cyan
 $modele = Join-Path $root 'models\Llama-3.2-3B-Instruct-Q4_K_M.gguf'
@@ -88,4 +104,23 @@ Get-ChildItem $OutDir -Filter '*.pdb' | Remove-Item
 $taille = (Get-ChildItem $OutDir -Recurse -File | Measure-Object Length -Sum).Sum / 1GB
 Write-Host ""
 Write-Host ("Installateur prêt : {0} ({1:N1} Go)" -f $OutDir, $taille) -ForegroundColor Green
-Write-Host "Copiez le dossier entier sur le PC cible, puis lancez CoreGuard-Setup.exe (droits administrateur)."
+Set-Content -Path (Join-Path $OutDir 'LISEZMOI.txt') -Encoding UTF8 -Value @(
+    "CoreGuard $Version - installation hors ligne",
+    "",
+    "1. Lancer CoreGuard-Setup.exe (accepter la demande d'administrateur).",
+    "2. Choisir le mot de passe de protection, garder les options, Installer.",
+    "3. Guide : payload\Docs\GUIDE.md (aussi dans le menu Démarrer après installation).",
+    "",
+    "Modèle d'IA téléchargé à part (release GitHub) : placer Llama-3.2-3B-Instruct-Q4_K_M.gguf",
+    "à côté de CoreGuard-Setup.exe avant de lancer l'installation.")
+
+if (-not $SansZip) {
+    # Archive unique et complète (zip64 : fichiers de plus de 2 Go acceptés), avec l'outil tar intégré à Windows
+    $zip = Join-Path (Split-Path $OutDir -Parent) "CoreGuard-Setup-$Version-complet.zip"
+    if (Test-Path $zip) { Remove-Item $zip -Force }
+    Write-Host "Archive complète : $zip ..." -ForegroundColor Cyan
+    & tar.exe -a -c -f $zip -C (Split-Path $OutDir -Parent) (Split-Path $OutDir -Leaf)
+    if ($LASTEXITCODE -ne 0) { throw "Création de l'archive échouée (code $LASTEXITCODE)." }
+    Write-Host ("Archive prête : {0} ({1:N1} Go)" -f $zip, ((Get-Item $zip).Length / 1GB)) -ForegroundColor Green
+}
+Write-Host "Copiez le dossier (ou l'archive décompressée) sur le PC cible, puis lancez CoreGuard-Setup.exe."

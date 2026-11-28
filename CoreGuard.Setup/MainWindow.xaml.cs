@@ -30,6 +30,9 @@ public partial class MainWindow : Window
 
         long bytes = _installer.PayloadBytes();
         SizeText.Text = bytes > 0 ? $"Espace nécessaire : {bytes / 1024d / 1024 / 1024:0.0} Go" : "Charge utile introuvable : lancez l'assistant depuis son dossier.";
+        if (bytes > 0 && !_installer.ModelAvailable())
+            SizeText.Text += $"{Environment.NewLine}Modèle d'IA local absent : placez {Installer.ModelFile} à côté de CoreGuard-Setup.exe pour l'inclure " +
+                             "(sinon CoreGuard fonctionne sans les explications par l'IA).";
         NextButton.IsEnabled = bytes > 0;
         bool existing = Installer.ServiceExists && Installer.PasswordConfigured;
         CurrentPanel.Visibility = existing ? Visibility.Visible : Visibility.Collapsed;
