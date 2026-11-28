@@ -119,7 +119,7 @@ if (-not $SansZip) {
     $zip = Join-Path (Split-Path $OutDir -Parent) "CoreGuard-Setup-$Version-complet.zip"
     if (Test-Path $zip) { Remove-Item $zip -Force }
     Write-Host "Archive complète : $zip ..." -ForegroundColor Cyan
-    & tar.exe -a -c -f $zip -C (Split-Path $OutDir -Parent) (Split-Path $OutDir -Leaf)
+    & "$env:SystemRoot\System32\tar.exe" -a -c -f $zip -C (Split-Path $OutDir -Parent) (Split-Path $OutDir -Leaf)
     if ($LASTEXITCODE -ne 0) { throw "Création de l'archive échouée (code $LASTEXITCODE)." }
     Write-Host ("Archive prête : {0} ({1:N1} Go)" -f $zip, ((Get-Item $zip).Length / 1GB)) -ForegroundColor Green
 }

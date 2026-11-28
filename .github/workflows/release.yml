@@ -59,7 +59,7 @@ jobs:
           $v = '${{ steps.v.outputs.version }}'
           New-Item -ItemType Directory -Force release | Out-Null
           Move-Item artifacts/CoreGuard-Setup/payload/App/models/Llama-3.2-3B-Instruct-Q4_K_M.gguf release/
-          & tar.exe -a -c -f "release/CoreGuard-Setup-$v.zip" -C artifacts CoreGuard-Setup
+          & "$env:SystemRoot\System32\tar.exe" -a -c -f "release/CoreGuard-Setup-$v.zip" -C artifacts CoreGuard-Setup
           if ($LASTEXITCODE -ne 0) { throw "zip échoué" }
           Get-ChildItem release | Format-Table Name, Length
 
