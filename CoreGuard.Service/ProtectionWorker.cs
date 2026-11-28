@@ -28,6 +28,7 @@ public sealed class ProtectionWorker(
     ScriptScanner scripts,
     LockdownController lockdown,
     ILockdownBackend lockdownBackend,
+    CoreGuard.Network.INetworkGuard firewall,
     ServiceOptions options,
     IHostApplicationLifetime lifetime,
     ILogger<ProtectionWorker> logger) : BackgroundService
@@ -43,6 +44,8 @@ public sealed class ProtectionWorker(
     private CredentialGuard? _credentials;
     private RemoteLockWatcher? _remoteLock;
     private ParanoiaGuard? _paranoia;
+    private RemoteControlServer? _remote;
+    private RemoteControlConfig? _remoteConfig;
     private DateTime _lastEngage = DateTime.MinValue;
     private int _stopAccepted;
     private int _amsiScanned, _amsiBlocked;
@@ -62,6 +65,7 @@ public sealed class ProtectionWorker(
         StartCredentialGuard();
         StartLockdown();
         StartParanoia();
+        StartRemoteControl();
         if (options.Supervise) await StartSelfDefenseAsync();
         logger.LogInformation("CoreGuard démarré (PID {Pid}, élevé : {Elevated}, actions : {Provider}, auto-défense : {Harden}, mot de passe : {Pwd}).",
             Environment.ProcessId, Environment.IsPrivilegedProcess, actions.Name, options.Harden, stopAuthenticator.IsConfigured);
@@ -153,6 +157,20 @@ public sealed class ProtectionWorker(
                 }
                 return new IpcEnvelope(IpcContract.Types.ParanoiaResult, StopResult: _paranoia?.Disable()
                     ?? new StopResult(false, "Mode Paranoïa indisponible."));
+            }
+
+            case IpcContract.Types.RemotePair:
+            case IpcContract.Types.RemoteRevoke:
+            {
+                // La clé d'appareil permet de déverrouiller le PC : mot de passe de protection exigé
+                StopResult check = stopAuthenticator.Verify(request.Stop);
+                if (!check.Accepted)
+                {
+                    Publish("Critical", "Contrôle à distance", "Association refusée", check.Message);
+                    return new IpcEnvelope(IpcContract.Types.RemoteResult, Remote: new RemotePairing(false, 0, null, [], check.Message));
+                }
+                return new IpcEnvelope(IpcContract.Types.RemoteResult,
+                    Remote: request.Type == IpcContract.Types.RemotePair ? PairPhone() : RevokePhone());
             }
 
             case IpcContract.Types.AmsiScan:
@@ -268,12 +286,88 @@ public sealed class ProtectionWorker(
     private void StartParanoia()
     {
         if (!OperatingSystem.IsWindows()) return;
-        _paranoia = new ParanoiaGuard(actions, lockdownBackend, () => lockdown.State.Engaged, Publish, logger, ServiceHost.ParanoiaStatePath);
+        _remoteConfig = RemoteControlConfig.Load(ServiceHost.RemoteControlPath) is { Enabled: true } cfg ? cfg : null;
+        _paranoia = new ParanoiaGuard(actions, lockdownBackend, () => lockdown.State.Engaged, Publish, logger, ServiceHost.ParanoiaStatePath,
+            () => _remoteConfig is { } r ? [(ushort)r.Port] : []);
         if (_etw is not null) _etw.ProcessStarted += (_, e) => _paranoia.OnProcessStarted(e.Pid, e.Image);
         _paranoia.Reassert(); // actif avant un redémarrage : ré-appliqué
         if (_paranoia.Enabled) logger.LogWarning("Mode Paranoïa toujours actif : {Status}", _paranoia.StatusText);
         _server?.BroadcastStatus();
     }
+
+    // ---------- Contrôle à distance (téléphone, réseau local / point d'accès) ----------
+
+    private void StartRemoteControl()
+    {
+        _remoteConfig ??= RemoteControlConfig.Load(ServiceHost.RemoteControlPath) is { Enabled: true } cfg ? cfg : null;
+        if (_remoteConfig is null) return;
+        try
+        {
+            _remote = new RemoteControlServer(_remoteConfig, ExecuteRemote, RemoteStatus, Publish, logger);
+            _remote.Start();
+            if (firewall is CoreGuard.Network.WindowsFirewall wf && wf.CanManageFirewall)
+                wf.AllowInboundPortFromLocalSubnet("Controle a distance", _remoteConfig.Port);
+        }
+        catch (Exception ex) when (ex is System.Net.Sockets.SocketException or CoreGuard.Network.NetworkGuardException or UnauthorizedAccessException)
+        {
+            logger.LogWarning("Contrôle à distance indisponible : {Message}", ex.Message);
+            _remote?.Dispose();
+            _remote = null;
+        }
+        _server?.BroadcastStatus();
+    }
+
+    private RemotePairing PairPhone()
+    {
+        _remote?.Dispose();
+        _remote = null;
+        _remoteConfig = RemoteControlConfig.CreateNew();
+        _remoteConfig.Save(ServiceHost.RemoteControlPath);
+        StartRemoteControl();
+        _paranoia?.RefreshFirewall();
+        Publish("Warning", "Contrôle à distance", "Téléphone associé",
+            "Toute association précédente est révoquée. Scannez le QR code affiché par CoreGuard avec le téléphone.");
+        return _remote is null
+            ? new RemotePairing(false, 0, null, [], "Port " + _remoteConfig.Port + " indisponible : contrôle à distance non démarré.")
+            : new RemotePairing(true, _remoteConfig.Port, _remoteConfig.Key, _remoteConfig.Urls(), "Téléphone prêt à être associé.");
+    }
+
+    private RemotePairing RevokePhone()
+    {
+        _remote?.Dispose();
+        _remote = null;
+        _remoteConfig = null;
+        try { File.Delete(ServiceHost.RemoteControlPath); } catch (IOException) { }
+        if (firewall is CoreGuard.Network.WindowsFirewall wf && wf.CanManageFirewall) wf.RemoveRule("Controle a distance");
+        _paranoia?.RefreshFirewall();
+        _server?.BroadcastStatus();
+        Publish("Warning", "Contrôle à distance", "Téléphone révoqué", "Le contrôle à distance est désactivé.");
+        return new RemotePairing(false, 0, null, [], "Contrôle à distance désactivé.");
+    }
+
+    private (bool Ok, string Message) ExecuteRemote(string action)
+    {
+        StopResult r = action switch
+        {
+            "lock" => Engage("ordre du téléphone associé", cutNetwork: false),
+            "unlock" => ReleaseLockdown(),
+            "paranoia-on" => _paranoia?.Enable() ?? new StopResult(false, "Mode Paranoïa indisponible."),
+            "paranoia-off" => _paranoia?.Disable() ?? new StopResult(false, "Mode Paranoïa indisponible."),
+            _ => new StopResult(false, "Action inconnue.")
+        };
+        _server?.BroadcastStatus();
+        return (r.Accepted, r.Message);
+    }
+
+    private StopResult ReleaseLockdown()
+    {
+        if (!lockdown.State.Engaged) return new StopResult(true, "PC déjà déverrouillé.");
+        lockdown.Release();
+        Publish("Warning", "Verrouillage", "PC déverrouillé", "Ordre signé du téléphone associé.");
+        return new StopResult(true, "PC déverrouillé.");
+    }
+
+    private object RemoteStatus() => new { lockdown = lockdown.State.Engaged, paranoia = _paranoia?.Enabled ?? false, machine = Environment.MachineName };
 
     // ---------- Anti-infostealer ----------
 
@@ -387,11 +481,19 @@ public sealed class ProtectionWorker(
         var paranoia = paranoiaGuard is null
             ? new ModuleStatus(ServiceModules.Paranoia, "Unavailable", "Non démarré")
             : new ModuleStatus(ServiceModules.Paranoia, paranoiaGuard.Enabled ? "Active" : "Disabled", paranoiaGuard.StatusText);
+        var remoteConfig = _remoteConfig;
+        var remote = remoteConfig is null
+            ? new ModuleStatus(ServiceModules.Remote, "Disabled", "Aucun téléphone associé")
+            : _remote is null
+                ? new ModuleStatus(ServiceModules.Remote, "Unavailable", $"Port {remoteConfig.Port} indisponible")
+                : new ModuleStatus(ServiceModules.Remote, "Active",
+                    $"Téléphone associé le {remoteConfig.PairedUtc.ToLocalTime():dd/MM HH:mm}, port {remoteConfig.Port} : " +
+                    string.Join(", ", RemoteControlConfig.LocalAddresses()));
         var amsi = AmsiProviderRegistered()
             ? new ModuleStatus(ServiceModules.Amsi, "Active", $"Fournisseur AMSI enregistré : {_amsiScanned} contenu(s) analysé(s), {_amsiBlocked} bloqué(s)")
             : new ModuleStatus(ServiceModules.Amsi, "Unavailable", "Fournisseur AMSI non enregistré (scripts/install-service.ps1)");
         return new ServiceStatus(IpcContract.ProtocolVersion, Environment.ProcessId, _startedUtc,
-            actions.Name, actions.IsKernelBacked, Environment.IsPrivilegedProcess, [behavior, canaries, credentials, amsi, memory, lockdownModule, paranoia, selfDefense])
+            actions.Name, actions.IsKernelBacked, Environment.IsPrivilegedProcess, [behavior, canaries, credentials, amsi, memory, lockdownModule, paranoia, remote, selfDefense])
         {
             StopPasswordConfigured = stopAuthenticator.IsConfigured
         };
@@ -409,6 +511,7 @@ public sealed class ProtectionWorker(
         _memory = null;
         _credentials?.Dispose(); // retire le profil leurre
         _remoteLock?.Dispose();
+        _remote?.Dispose();
         _paranoia?.Dispose(); // session WFP dynamique fermée : filtres retirés (l'état reste enregistré pour le redémarrage)
         _credentials = null;
         _canaries = null;

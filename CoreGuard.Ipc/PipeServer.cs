@@ -152,7 +152,8 @@ public sealed partial class PipeServer : IAsyncDisposable
                         new IpcEnvelope(IpcContract.Types.Status, Status: SafeStatus(), Version: IpcContract.ProtocolVersion),
                     IpcContract.Types.Challenge or IpcContract.Types.StopRequest or IpcContract.Types.AmsiScan
                         or IpcContract.Types.LockdownEngage or IpcContract.Types.UnlockRequest
-                        or IpcContract.Types.ParanoiaEnable or IpcContract.Types.ParanoiaDisable =>
+                        or IpcContract.Types.ParanoiaEnable or IpcContract.Types.ParanoiaDisable
+                        or IpcContract.Types.RemotePair or IpcContract.Types.RemoteRevoke =>
                         SafeCommand(message) ?? new IpcEnvelope(IpcContract.Types.Error, Error: "Requête refusée."),
                     // Toute autre demande est refusée
                     _ => new IpcEnvelope(IpcContract.Types.Error, Error: "Requête non prise en charge.")

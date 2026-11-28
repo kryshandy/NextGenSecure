@@ -41,6 +41,9 @@ public static class IpcContract
         public const string ParanoiaEnable = "paranoiaEnable";
         public const string ParanoiaDisable = "paranoiaDisable";
         public const string ParanoiaResult = "paranoiaResult";
+        public const string RemotePair = "remotePair";
+        public const string RemoteRevoke = "remoteRevoke";
+        public const string RemoteResult = "remoteResult";
     }
 
     internal static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
@@ -96,7 +99,8 @@ public sealed record IpcEnvelope(
     StopResult? StopResult = null,
     AmsiScanRequest? Amsi = null,
     AmsiVerdict? AmsiVerdict = null,
-    LockdownRequest? Lockdown = null);
+    LockdownRequest? Lockdown = null,
+    RemotePairing? Remote = null);
 
 /// <summary>Alerte émise par le service. Sévérité : "Info", "Warning" ou "Critical".</summary>
 public sealed record ServiceAlert(string Severity, string Source, string Title, string Detail, DateTime TimestampUtc);
@@ -127,6 +131,12 @@ public sealed record ServiceStatus(
 /// </summary>
 public sealed record AmsiScanRequest(string App, string? ContentName, string Content);
 
+/// <summary>
+/// Contrôle à distance par téléphone (réseau local / point d'accès du PC) : clé d'appareil (256 bits, Base64Url) et
+/// adresses à ouvrir sur le téléphone (la clé est dans le fragment « #k= », jamais envoyé sur le réseau).
+/// </summary>
+public sealed record RemotePairing(bool Enabled, int Port, string? Key, IReadOnlyList<string> Urls, string Message);
+
 /// <summary>Demande de verrouillage d'urgence du PC.</summary>
 public sealed record LockdownRequest(string Reason, bool CutNetwork);
 
@@ -151,4 +161,5 @@ public static class ServiceModules
     public const string Credentials = "Credentials";
     public const string Lockdown = "Lockdown";
     public const string Paranoia = "Paranoia";
+    public const string Remote = "Remote";
 }

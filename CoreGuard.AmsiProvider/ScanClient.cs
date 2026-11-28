@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.IO.Pipes;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -51,9 +51,36 @@ internal static partial class ScanClient
         if (!dev && !ServerIsService(pipe.SafePipeHandle)) return false;
 
         WriteFrame(pipe, BuildRequest(app, contentName, content));
-        var reply = ReadFrameAsync(pipe);
+        // Le service peut diffuser une alerte (voire son état) sur la même connexion AVANT le verdict : on lit les trames
+        // jusqu'au verdict, dans le même budget de temps. Lire seulement la première laissait passer un script détecté.
+        var reply = ReadVerdictAsync(pipe);
         if (!reply.Wait(ReplyTimeoutMs) || reply.Result is not { } body) return false;
         return ParseDetected(body);
+    }
+
+    private static async Task<byte[]?> ReadVerdictAsync(Stream stream)
+    {
+        for (int i = 0; i < 16; i++)
+        {
+            byte[]? body = await ReadFrameAsync(stream).ConfigureAwait(false);
+            if (body is null) return null;
+            if (IsVerdict(body)) return body;
+        }
+        return null;
+    }
+
+    /// <summary>Trame « amsiResult » (verdict) ? Les autres trames (alerte, état) sont ignorées.</summary>
+    internal static bool IsVerdict(byte[] body)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            return doc.RootElement.TryGetProperty("type", out var type) && type.GetString() == "amsiResult";
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     internal static byte[] BuildRequest(string app, string? contentName, byte[] content)

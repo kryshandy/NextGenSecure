@@ -300,7 +300,13 @@ public sealed class ProtectionService : IDisposable
             var guardian = new ClipboardGuardian();
             guardian.AlertRaised += (_, a) => _alerts.Publish(
                 a.Kind == ClipboardAlertKind.SecretCleared ? AlertSeverity.Info : AlertSeverity.Critical,
-                "Presse-papiers", a.Kind.ToString(), a.Detail);
+                "Presse-papiers", a.Kind switch
+                {
+                    CoreGuard.Privacy.ClipboardAlertKind.HijackRestored => "Presse-papiers détourné : valeur d'origine restaurée",
+                    CoreGuard.Privacy.ClipboardAlertKind.CryptoAddressSwapped => "Adresse crypto remplacée dans le presse-papiers",
+                    CoreGuard.Privacy.ClipboardAlertKind.SecretCleared => "Secret effacé du presse-papiers",
+                    _ => a.Kind.ToString()
+                }, a.Detail);
             guardian.Start();
             _clipboard = guardian;
             Set(Clipboard, ModuleState.Active, "Garde active");

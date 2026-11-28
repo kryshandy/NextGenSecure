@@ -58,11 +58,12 @@ if (-not $Enfant) {
 New-Item -ItemType Directory -Force -Path $demo | Out-Null
 $stop = Join-Path $demo 'STOP'
 
-# 1) Ses propres fichiers factices
+# 1) Ses propres fichiers factices, nommés par exécution (aucune collision avec une exécution précédente)
+$lot = Get-Date -Format 'yyyyMMdd-HHmmss'
 1..$NbFichiers | ForEach-Object {
-    Set-Content -Path (Join-Path $demo "document_factice_$_.txt") -Value "DEMO - INOFFENSIF : contenu factice $_" -Encoding UTF8
+    Set-Content -Path (Join-Path $demo "document_factice_${lot}_$_.txt") -Value "DEMO - INOFFENSIF : contenu factice $_" -Encoding UTF8
 }
-foreach ($f in Get-ChildItem $demo -File -Filter 'document_factice_*.txt') {
+foreach ($f in Get-ChildItem $demo -File -Filter "document_factice_${lot}_*.txt") {
     if (Test-Path $stop) { Write-Output 'Kill switch STOP détecté : arrêt.'; exit 0 }
     Add-Content -Path $f.FullName -Value 'DEMO-INOFFENSIF'
     Rename-Item -Path $f.FullName -NewName ($f.Name + '.coreguard-demo')

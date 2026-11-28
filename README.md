@@ -1,173 +1,118 @@
 # 🛡️ CoreGuard — Antivirus nouvelle génération augmenté par l'IA
 
-> Suite de sécurité hybride pour Windows 10/11, **100 % locale**, sans cloud ni télémétrie sortante.
+> Suite de sécurité pour Windows 10/11, **100 % locale** : aucune donnée envoyée, aucun cloud, fonctionne hors ligne.
 > Projet de cours C# — « en surface du C#, en dessous bien plus ».
 
-CoreGuard combine des moteurs de détection classiques, de l'**IA embarquée** (classifieur statique ONNX + LLM local pour l'explication) et une couche de **protection comportementale temps réel**. Il est livré en **deux phases** :
+CoreGuard combine des moteurs de détection classiques, de l'**IA embarquée** (classifieur EMBER / ONNX et modèle de
+langage local Llama 3.2 3B), une **protection comportementale temps réel** assurée par un service SYSTEM qui se défend
+lui-même, une **extension navigateur** anti-phishing avec coffre-fort, et un **contrôle à distance par téléphone**.
 
-| Phase | Périmètre | État |
-|-------|-----------|------|
-| **Phase 1** (en cours) | 100 % user-mode (Ring 3 / service `SYSTEM`) — aucune VM, aucun *test signing*, aucun driver. | 🚧 En développement |
-| **Phase 2** (en pause) | Driver noyau Rust (minifilter + `ObRegisterCallbacks`), rebranchable via l'abstraction `IKernelActionProvider`. | ⏸️ En pause |
-
-> **État réel, fonctionnalité par fonctionnalité** : voir l'audit [`docs/AUDIT.md`](docs/AUDIT.md) (ce qui est complet, partiel ou absent, et le plan pour rendre les 10 démos démontrables).
+| Document | Pour qui | Contenu |
+|---|---|---|
+| [`docs/GUIDE.md`](docs/GUIDE.md) | tout le monde | installer, utiliser, téléphone, tester, comprendre le code (court) |
+| [`docs/TESTING.md`](docs/TESTING.md) | démonstration, soutenance | commande exacte, résultat attendu et observé pour chaque fonctionnalité |
+| [`docs/AUDIT.md`](docs/AUDIT.md) | évaluation | état réel de chaque fonctionnalité, preuves, limites |
+| [`docs/IA-ENTRAINEMENT.md`](docs/IA-ENTRAINEMENT.md) | IA | comment le modèle est entraîné et évalué (AUC 0,980) |
+| [`docs/CoreGuard-Phase1-Explication.html`](docs/CoreGuard-Phase1-Explication.html) | découverte | explication illustrée, en français simple et en termes techniques |
 
 ---
 
-## Mise en route rapide
+## Installer (sans rien télécharger)
+
+1. Construire l'installateur une fois, sur la machine de développement : `./scripts/build-setup.ps1`
+   → `artifacts\CoreGuard-Setup\` (~2,6 Go : application, runtime .NET, **modèle d'IA local**, modèle ONNX, service,
+   fournisseur AMSI, extension, guide, spécimens de démonstration).
+2. Copier ce dossier sur le PC cible et lancer **`CoreGuard-Setup.exe`** : choisir le **mot de passe de protection**,
+   garder les options, *Installer*. Désinstallation : *Paramètres Windows > Applications > CoreGuard*.
+3. Extension navigateur : `edge://extensions` > *Mode développeur* > *Charger l'extension non empaquetée* >
+   `C:\Program Files\CoreGuard\Extension`.
+
+## Cas d'usage
+
+| Situation | Ce que fait CoreGuard | Comment l'utiliser |
+|---|---|---|
+| Je télécharge un fichier | verdict **vert / orange / rouge** : site d'origine (`Zone.Identifier`), signature, moteurs, IA | automatique ; *Mettre en quarantaine* en un clic |
+| Je veux vérifier un fichier ou un dossier | analyse (signatures, règles, PE, entropie, IA EMBER/ONNX) + explication par l'IA locale | page **Analyse** |
+| Un ransomware chiffre mes fichiers | leurres cachés : le coupable est **arrêté au premier leurre** (audit NTFS, PID exact) | automatique (service) |
+| Un script PowerShell malveillant se lance | analysé **avant exécution** (fournisseur AMSI) et bloqué | automatique |
+| Un programme vole mes mots de passe de navigateur | tout lecteur qui n'est pas le navigateur signé est **arrêté** | automatique (service) |
+| Un malware s'injecte en mémoire (sans fichier) | scan mémoire toutes les 30 s, processus arrêté | automatique (service) |
+| Un programme s'installe au démarrage | fenêtre **Autoriser / Bloquer** avec niveau de risque | répondre à la fenêtre |
+| Une clé USB « tape » toute seule (BadUSB) | frappe surhumaine détectée, **clavier bloqué 10 s** | automatique |
+| Mon adresse crypto est remplacée au collage | valeur d'origine **restaurée** | automatique |
+| Une application allume ma caméra / mon micro | alerte, bouton **Couper** | tableau de bord |
+| J'ouvre un site d'arnaque | page **« CoreGuard n'aime pas ce site »** ; doute → fenêtre ; IA locale en zone grise | extension navigateur |
+| Je veux gérer mes mots de passe | **coffre-fort** chiffré, remplissage refusé sur un site douteux | page **Coffre-fort** + extension |
+| Je m'absente / je prête le PC / je doute | **Mode Paranoïa** : USB bloqué, pare-feu WFP durci, programmes non signés de Téléchargements bloqués | interrupteur du tableau de bord |
+| On m'a volé le PC / je suis loin | **verrouillage d'urgence** : écran CoreGuard, USB et périphériques refusés | bouton, BadUSB, ou **téléphone** |
+| Je veux agir depuis mon téléphone, sans Internet | page signée (HMAC) sur le Wi-Fi ou le **point d'accès du PC** : verrouiller, déverrouiller, Paranoïa | *Réglages > Contrôle à distance* > QR code |
+| Un malware essaie de tuer l'antivirus | `taskkill` refusé, watchdog, arrêt uniquement avec le **mot de passe** | automatique |
+
+Tester chaque cas avec les spécimens inoffensifs : [`docs/TESTING.md`](docs/TESTING.md).
+
+## Fonctionnalités
+
+**Détection**
+- ✅ Analyse à la demande et **Smart Download Guard** (marque du Web, signature Authenticode, moteurs, IA)
+- ✅ Signatures SHA-256 multi-sources ; **règles de contenu** de type YARA (EICAR, Mimikatz, contournement AMSI, suppression des clichés, notes de rançon, *download cradles*, vol d'identifiants, chargeurs réflectifs)
+- ✅ **Analyse PE statique** (IAT pondérée, entropie et RWX par section, packers) ; **Authenticode** hors ligne
+- ✅ **IA niveau 1** : classifieur EMBER 2018 (LightGBM → ONNX), AUC 0,980 sur 100 561 fichiers de test, 0 fausse alerte au seuil haut sur 2 177 exécutables Windows, ≈ 17 ms par fichier ([méthode](docs/IA-ENTRAINEMENT.md))
+- ✅ **IA niveau 2** : LLM local (Llama 3.2 3B, LLamaSharp) qui explique les alertes et relit les sites douteux ; il ne peut qu'aggraver un verdict
+- ✅ **AMSI** : fournisseur natif (NativeAOT, COM), scripts analysés par le service avant exécution
+- ✅ **ETW** : règles comportementales (Office → shell, suppression des clichés), arrêt immédiat de `vssadmin`/`wmic`/`diskshadow`
+
+**Réaction et protection**
+- ✅ **Quarantaine** AES-256-GCM (clé DPAPI), restauration refusée si le fichier est altéré
+- ✅ **Anti-ransomware** (leurres + audit NTFS), **anti-infostealer**, **scan mémoire** fileless, **gardien de persistance**
+- ✅ **Pare-feu natif WFP** (`FwpmFilterAdd0` par AppId) : isolement d'un programme, Mode Paranoïa
+- ✅ **Auto-défense** : DACL durcie, watchdog mutuel, arrêt et désactivations par **mot de passe** (défi-réponse HMAC)
+- ✅ **BadUSB**, **verrouillage d'urgence** (Ctrl+R puis mot de passe pour déverrouiller), **Mode Paranoïa** réel
+- ✅ **Contrôle à distance par téléphone** : réseau local ou point d'accès mobile du PC, clé de 256 bits par QR code, ordres signés sur défi à usage unique, blocage après 5 échecs
+- ✅ **Mode arrière-plan** : icône près de l'horloge, démarrage avec Windows, bulles d'alerte
+
+**Navigateur et vie privée**
+- ✅ **Anti-phishing** : base de confiance locale (100 000 domaines, Public Suffix List, liste noire OpenPhish), OCR + QR, IA locale, page d'interception ; seul l'utilisateur peut faire confiance à un site (confirmé dans CoreGuard) ; mesuré : 11/11 arnaques, 0 fausse alerte sur 19 cas
+- ✅ **Coffre-fort** (Argon2id + AES-256-GCM), remplissage par l'extension refusé hors navigateur signé et sur site douteux
+- ✅ **Presse-papiers** (anti-crypto-clipper, effacement des secrets), **caméra / micro** (alerte, bouton Couper)
+
+---
+
+## Développer
 
 ```powershell
 git clone https://github.com/kryshandy/NextGenSecure.git
 cd NextGenSecure
-./scripts/setup.ps1
-dotnet run --project AntivirusIA.UI
+./scripts/setup.ps1                     # paquets, modèle IA local (~2 Go, une fois), compilation
+dotnet run --project AntivirusIA.UI     # lancer l'application
+dotnet test AntivirusIA.slnx            # tests automatisés
+./scripts/install-service.ps1           # service de protection (console administrateur)
+./scripts/build-setup.ps1               # installateur complet hors ligne
 ```
 
-`setup.ps1` restaure les paquets, **télécharge le modèle IA local** (~2 Go, hors git) et compile. Détails de collaboration : [`CONTRIBUTING.md`](CONTRIBUTING.md).
-
-Pour une **distribution autonome** (runtime .NET + modèle embarqués, aucune installation requise sur la machine cible) :
-
-```powershell
-./scripts/publish.ps1
-```
-Résultat : un dossier unique `publish/CoreGuard` qui fonctionne hors-ligne.
-
-## Architecture (Phase 1)
+Prérequis : Windows 10/11 x64, SDK .NET 10+, outils C++ de Visual Studio (fournisseur AMSI uniquement).
 
 ```
-CoreGuard.sln
-├─ AntivirusIA.Core           Contrats, modèles, pipeline de scan, scoring
-├─ AntivirusIA.Engines        Moteurs : signatures, règles de contenu, entropie, heuristiques, PE statique, Authenticode
-├─ AntivirusIA.AI             IA : LLM local (LLamaSharp) pour les explications et l'anti-phishing
-├─ AntivirusIA.Ml             IA niveau 1 : caractéristiques EMBER + modèle LightGBM exporté en ONNX (ONNX Runtime)
-├─ AntivirusIA.Infrastructure Quarantaine chiffrée (AES-256-GCM, clé DPAPI), historique SQLite
-├─ CoreGuard.RealTime         Temps réel : FileSystemWatcher, canaris anti-ransomware
-├─ CoreGuard.Behavior         Comportement : ETW, client AMSI, gardien de persistance
-├─ CoreGuard.Network          Pare-feu natif WFP (FwpmFilterAdd0 par AppId), pare-feu Windows (COM), ports, kill switch
-├─ CoreGuard.Response         Actions de réponse user-mode (IKernelActionProvider) : arrêt, suspension, ACL, DACL
-├─ CoreGuard.Ipc              Canal UI ↔ service (named pipe local, ACL, vérification du serveur)
-├─ CoreGuard.Service          Service Windows LocalSystem : ETW, canaris, analyse AMSI, auto-défense
-├─ CoreGuard.AmsiProvider     Fournisseur AMSI natif (NativeAOT, COM) chargé dans PowerShell & co.
-├─ CoreGuard.Devices          Moniteur BadUSB : cadence de frappe, blocage de l'injection
-├─ CoreGuard.Memory           Scan mémoire « fileless » (images PE injectées)
-├─ CoreGuard.Vault            Coffre-fort mots de passe (SQLite + Argon2id + AES-GCM)
-├─ CoreGuard.Privacy          Privacy Guard (caméra/micro), presse-papiers, Mode Paranoïa
-├─ AntivirusIA.UI             Interface WPF (MVVM) — dashboard temps réel
-├─ CoreGuard.Extension        Extension navigateur (Manifest V3 + Native Messaging + OCR)
-└─ AntivirusIA.Tests          Tests (MSTest)
+AntivirusIA.Core / Engines / Ml / AI / Infrastructure   analyse, IA, quarantaine
+AntivirusIA.UI                                           application WPF (MVVM)
+CoreGuard.Service / Ipc                                  service SYSTEM, canal sécurisé, contrôle à distance
+CoreGuard.Behavior / RealTime / Network / Memory         ETW, leurres, WFP, mémoire
+CoreGuard.Response / Devices / Privacy / Vault           réponse, BadUSB, vie privée, coffre
+CoreGuard.Extension / AmsiProvider / Setup               navigateur, AMSI natif, installateur
+demo/                                                    spécimens inoffensifs de démonstration
 ```
 
-> `CoreGuard.Service` (LocalSystem) héberge la télémétrie ETW et la réponse ; l'UI s'y connecte par named pipe et garde les modules liés à la session de l'utilisateur. Sans service installé, l'UI fonctionne seule (ETW alors limité aux sessions administrateur).
+Détail par module : [`docs/MODULES.md`](docs/MODULES.md) ; collaboration : [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
----
+## Sécurité et limites assumées
 
-## Fonctionnalités
-
-✅ = disponible · 🟡 = partiel · ⏳ = prévu (détail dans [`docs/AUDIT.md`](docs/AUDIT.md))
-
-**Détection**
-- ✅ Scan à la demande (fichier / dossier récursif) + **Smart Download Guard** : chaque nouveau téléchargement reçoit un verdict vert / orange / rouge (marque du Web `Zone.Identifier` : site d'origine, signature Authenticode, moteurs)
-- ✅ Signatures SHA-256 multi-sources (JSON + listes `.txt` issues de flux publics, dossier `%LocalAppData%\CoreGuard\signatures`)
-- ✅ **Règles de contenu** inspirées de YARA (texte, hex avec jokers, UTF-16, conditions) : EICAR, Mimikatz, contournement AMSI, suppression des clichés, notes de rançon, *download cradles*, vol d'identifiants navigateur, chargeurs réflectifs
-- ✅ **Analyse PE statique** (IAT pondérée, entropie et RWX par section, packers) ; un PE malformé est jugé suspect (échec sécurisé)
-- ✅ **Signature Authenticode** (WinVerifyTrust, hors ligne) : atténue les heuristiques, jamais les preuves fortes
-- ✅ **IA niveau 2** — LLM local (Llama 3.2 3B via LLamaSharp) : explique les alertes, **ne décide jamais** du blocage
-- 🟡 **ETW** — règles Office→shell (Base64), `vssadmin`/`wmic`/`diskshadow`, persistance (droits admin requis ; alerte sans blocage)
-- ✅ **AMSI** — fournisseur natif enregistré auprès de Windows : chaque script PowerShell / VBScript / JScript / macro est analysé par le service **avant exécution** (règles + Base64 décodé) et bloqué s'il est malveillant. Compilation : `scripts/build-amsi-provider.ps1` (outils C++ de Visual Studio) ; enregistrement par `install-service.ps1`
-- ✅ **IA niveau 1** — classifieur statique des exécutables entraîné sur EMBER 2018 (LightGBM → ONNX) : AUC 0,980 sur 100 561 fichiers de test, 0 fausse alerte au seuil haut sur les 2 177 exécutables Windows de la machine, ≈ 17 ms par fichier ; détails et méthode : [`docs/IA-ENTRAINEMENT.md`](docs/IA-ENTRAINEMENT.md)
-
-**Réaction / protection**
-- ✅ Quarantaine **AES-256-GCM** authentifiée, clé protégée par **DPAPI**, droits NTFS restreints (exécution refusée), restauration refusée si le fichier est altéré
-- ✅ **Arrêt immédiat** des commandes de suppression des clichés instantanés (`vssadmin`, `wmic`, `diskshadow`) repérées par ETW, via `IKernelActionProvider` (garde-fous : jamais de processus critique de Windows)
-- ✅ **Anti-ransomware** : canaris cachés dans les dossiers de chaque utilisateur, restauration immédiate, et **arrêt du processus coupable** identifié par l'audit NTFS (PID exact, événement 4663 ; activé par `install-service.ps1`). Sans audit : alerte et restauration, jamais d'arrêt sur supposition
-- ✅ **Mode arrière-plan** — icône dans la zone de notification (Ouvrir / Verrouiller le PC / Quitter), fermer la fenêtre la masque sans arrêter la protection, bulles Windows pour les alertes, lancement caché à l'ouverture de session (`--background`, sans admin), instance unique
-- ✅ **Gardien de persistance** (Run/RunOnce, tâches planifiées, dossier Démarrage, services 7045) — fenêtre **Autoriser / Bloquer** avec niveau de risque, retrait réel (fichier Démarrage mis en quarantaine), choix mémorisé
-- ✅ Pare-feu : **WFP natif** (filtres par AppId dans une sous-couche CoreGuard, session dynamique ou persistante) pour isoler un programme et pour le Mode Paranoïa ; kill switch via le pare-feu Windows
-- ✅ **Auto-défense** du service : DACL durcie (taskkill refusé), watchdog mutuel (chaque processus relance l'autre), `sc stop` refusé, arrêt uniquement par **mot de passe** (défi-réponse HMAC, verrouillage après 5 échecs)
-- ✅ **Moniteur BadUSB** : un faux clavier USB qui tape à une vitesse surhumaine (ou à un rythme de machine) est bloqué 10 s ; un nouveau clavier branché déclenche une alerte et une vigilance renforcée
-- ✅ **Verrouillage d'urgence du PC** : bouton, BadUSB détecté ou ordre à distance (dossier synchronisé, opt-in) ; écran CoreGuard plein écran, raccourcis système bloqués, clés USB et nouveaux périphériques refusés, réseau coupé en option ; déverrouillage devant le PC : **Ctrl+R** puis le mot de passe de protection
-- ✅ **Scan mémoire** (menaces sans fichier) : toutes les 30 s, le service parcourt la mémoire des processus ; un exécutable chargé hors de tout fichier (DLL réflective, process hollowing) fait arrêter le processus
-- ✅ **Anti-infostealer** : la lecture des mots de passe, cookies et cartes enregistrés dans Chrome, Edge, Brave ou Firefox par un programme qui n'est pas un navigateur signé fait arrêter ce programme ; un faux profil Chromium sert de leurre
-
-**Modules utilisateur**
-- ✅ **Presse-papiers intelligent** (anti-crypto-clipper, vidage des secrets après 30 s)
-- ✅ **Privacy Guard** : alerte quand une application utilise la caméra ou le micro, bouton **Couper** (arrêt de l'application, retrait de l'autorisation) et interdiction aux applications de bureau en un clic
-- ✅ **Gestionnaire de mots de passe** : page « Coffre-fort » (Argon2id + AES-256-GCM, générateur, verrouillage auto), auto-remplissage par l'extension sans presse-papiers, refusé à tout programme qui n'est pas lancé par un navigateur signé
-- ✅ **Mode Paranoïa** : USB bloqué, WFP (entrées refusées, mshta/certutil/bitsadmin… coupés d'Internet), tout exécutable non signé lancé depuis Téléchargements / %TEMP% / %APPDATA% arrêté au démarrage (ETW) ; désactivation protégée par le mot de passe de protection ; sans service, l'application bloque seule l'exécution
-- ✅ **Anti-phishing** : base de confiance **locale** (100 000 domaines Tranco, Public Suffix List, liste noire OpenPhish, mise à jour optionnelle désactivée par défaut), règles d'URL (homographes, typosquatting, IP, marque en sous-domaine, http), page d'interception « CoreGuard n'aime pas ce site » et fenêtre « CoreGuard doute de ce site » ; seul l'utilisateur peut déclarer un site de confiance, confirmé dans CoreGuard ; installation : `./scripts/install-browser-extension.ps1`
-- ✅ **Anti-phishing visuel + IA** : OCR (`Windows.Media.Ocr`) + QR (quishing) dès qu'un mot de passe est demandé sur un site non connu, puis revue de la zone grise par l'**IA locale** (Llama 3.2 3B), qui ne peut qu'aggraver le verdict, et seulement sur indice objectif (marque usurpée, données sensibles) ; mesure sur 19 cas : règles seules 9/11 arnaques, règles + IA 11/11, 0 fausse alerte (`dotnet run --project demo/10-phishing-ia/eval`)
-
----
-
-## Prérequis
-
-- **Windows 10/11 x64**
-- **.NET SDK 10+** (testé avec SDK 11)
-- Certaines fonctions temps réel / réseau nécessitent des **droits administrateur**
-
-## Modèle IA local
-
-Le LLM est un fichier GGUF placé dans `models/` (ignoré par git) :
-
-```
-models/Llama-3.2-3B-Instruct-Q4_K_M.gguf   (~2 Go)
-```
-
-Téléchargement (si absent) :
-
-```powershell
-curl -L -o "models/Llama-3.2-3B-Instruct-Q4_K_M.gguf" "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf"
-```
-
-## Service Windows (protection système)
-
-Depuis une console PowerShell **administrateur**, à la racine du dépôt :
-
-```powershell
-./scripts/install-service.ps1
-```
-
-Le service `CoreGuardService` est publié dans `%ProgramFiles%\CoreGuard\Service`, démarre automatiquement et redémarre après un arrêt anormal. À la première installation, le script demande un **mot de passe de protection** : il sera exigé pour tout arrêt (Réglages > Service et auto-défense > Désactiver, ou `CoreGuard.Service.exe --stop`). Désinstallation : `./scripts/uninstall-service.ps1` (mot de passe demandé).
-
-En développement, le service peut tourner en console (`dotnet run --project CoreGuard.Service`) ; l'UI ne l'accepte alors que si elle est compilée en Debug **et** lancée avec `COREGUARD_DEV_SERVICE=1`. En Release, seul un vrai service (session 0) est accepté.
-
-## Compiler & lancer
-
-```powershell
-dotnet build AntivirusIA.slnx
-```
-
-```powershell
-dotnet run --project AntivirusIA.UI
-```
-
-## Tests
-
-```powershell
-dotnet test AntivirusIA.slnx
-```
-
-461 tests MSTest (moteurs, IA niveau 1 EMBER/ONNX, quarantaine, règles, comportement, réseau, réponse, IPC, service, fournisseur AMSI natif, vie privée, coffre, extension). Procédure de test manuelle : [`docs/TESTING.md`](docs/TESTING.md).
-
----
-
-## Démonstration (laboratoire)
-
-Les scénarios de démo utilisent des **spécimens bénins** (aucune nuisance réelle, exécution isolée, *kill switch*) conçus uniquement pour déclencher les détecteurs de CoreGuard — voir [`demo/README.md`](demo/README.md).
-
-## Collaboration
-
-Le projet est pensé pour le travail à plusieurs (humains **et** sous-agents IA) grâce à l'**isolation des modules** : chaque fonctionnalité vit dans son propre projet `CoreGuard.*` qui ne dépend que de `AntivirusIA.Core`.
-
-- Flux Git (branches `feat/…`, Pull Requests, revue, *squash merge*), conventions de code et mise en route : voir [`CONTRIBUTING.md`](CONTRIBUTING.md).
-- Équipe de sous-agents prête à l'emploi pour **Claude Code** (`.claude/agents/`) et **OpenCode** (`opencode.json`), répartie par modèle pour l'économie : voir [`.opencode/README.md`](.opencode/README.md).
-- Cartographie des modules : [`docs/MODULES.md`](docs/MODULES.md). Plan détaillé : [`docs/PLAN.md`](docs/PLAN.md).
-
-## Sécurité & limites assumées
-
-- Sans le driver, 4 protections passent de « blocage » à « détection + réaction immédiate » : canaris, anti-`taskkill`, coffre-fort, anti-infostealer navigateur.
-- Les données de l'UI (`%LocalAppData%\CoreGuard`) et son processus restent accessibles à tout programme lancé sous le même compte : DPAPI protège la clé de quarantaine contre la copie vers une autre machine, pas contre un malware de la même session.
-- Le canal UI ↔ service n'accepte qu'une commande, l'arrêt, et seulement après preuve du mot de passe ; aucune autre action ne peut être demandée au service SYSTEM.
-- En mode utilisateur, un administrateur disposant de SeDebugPrivilege peut encore tuer le service et son watchdog en même temps ; le gestionnaire de services relance alors le service. Le driver Ring 0 supprimera cette limite.
-- L'IA assiste et explique ; elle ne remplace pas les règles déterministes.
-- Voir [`docs/PLAN.md`](docs/PLAN.md) pour le détail complet.
+- **Phase 1 = mode utilisateur** (service SYSTEM, aucun driver) : un administrateur doté de SeDebugPrivilege peut encore
+  arrêter le service et son watchdog ensemble ; le gestionnaire de services le relance. Le driver noyau (Phase 2, en pause)
+  supprimera cette limite via `IKernelActionProvider`.
+- Le canal application ↔ service n'accepte que ce qui **renforce** la protection (verrouiller, activer le Mode Paranoïa,
+  analyser un script) ; tout ce qui l'**affaiblit** (arrêt, déverrouillage, désactivation, association d'un téléphone)
+  exige la preuve du mot de passe de protection.
+- Les données de l'application (`%LocalAppData%\CoreGuard`) restent lisibles par un programme du même compte ; DPAPI
+  protège la clé de quarantaine contre la copie vers une autre machine.
+- Le contrôle à distance est volontairement limité au **réseau local** (Wi-Fi ou point d'accès du PC), en HTTP signé :
+  pas d'accès par Internet.
+- L'IA assiste et explique ; les règles déterministes restent la base des décisions.

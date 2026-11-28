@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Installateur hors ligne de CoreGuard : copie la charge utile (payload\) préparée par scripts/build-setup.ps1. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>CoreGuard-Setup</AssemblyName>
+    <AssemblyTitle>Installation de CoreGuard</AssemblyTitle>
+    <Product>CoreGuard</Product>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\AntivirusIA.UI\Assets\coreguard.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="System.IO" />
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="10.0.0" />
+    <Resource Include="..\AntivirusIA.UI\Assets\coreguard-256.png" Link="coreguard-256.png" />
+  </ItemGroup>
+
+</Project>

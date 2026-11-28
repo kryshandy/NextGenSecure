@@ -1,201 +1,115 @@
-# Guide de test CoreGuard — User stories & procédure
+# Tester CoreGuard — procédure précise et résultats observés
 
-Ce document explique **où se trouve tout**, **comment tester efficacement**, et **ce que chaque test déclenche** dans l'antivirus. Il est honnête sur le statut : certaines défenses sont **actives dès maintenant**, d'autres sont un **détecteur à venir** (Phase 2 ou câblage complémentaire).
+Ce guide dit **exactement** quoi lancer, quoi observer et comment nettoyer, pour chaque fonctionnalité. Tous les
+« malwares » utilisés sont des **spécimens inoffensifs** écrits pour la démonstration : ils imitent le comportement d'une
+attaque (texte encodé, écriture dans un leurre, lecture d'un faux profil…) sans jamais rien abîmer, envoyer ou exécuter
+de dangereux. Chacun a un nettoyage.
 
----
-
-## 0. Où se trouve tout
-
-| Besoin | Emplacement | Commande |
-|--------|-------------|----------|
-| **Installer / préparer** | `scripts/setup.ps1` | `./scripts/setup.ps1` (restaure, télécharge le modèle IA, compile) |
-| Télécharger seulement le modèle IA | `scripts/download-model.ps1` | `./scripts/download-model.ps1` |
-| **Distribution autonome** (tout embarqué) | `scripts/publish.ps1` | `./scripts/publish.ps1` → `publish/CoreGuard/` |
-| **Lancer l'application** | projet `AntivirusIA.UI` | `dotnet run --project AntivirusIA.UI` (depuis la racine du dépôt) |
-| **Tests automatisés** (196) | projets `*.Tests` | `dotnet test AntivirusIA.slnx` |
-| **Scripts de démo** (spécimens) | `demo/01…07/` | voir §4 et `demo/README.md` |
-
-> **Important :** lance toujours l'app **depuis la racine du dépôt** (`dotnet run --project AntivirusIA.UI`), sinon le modèle IA (`models/…gguf`) n'est pas trouvé et l'app retombe sur le verdict local (sans explication IA).
+La colonne **« Observé »** donne le résultat réel de la dernière campagne de test (28/11/2026, Windows 11, service
+installé).
 
 ---
 
-## 1. Prérequis pour tester efficacement
+## 0. Préparer la machine de test
 
-1. **Windows 10/11 x64**, .NET SDK 10+. Lance d'abord `./scripts/setup.ps1`.
-2. **Droits administrateur** requis pour : télémétrie **ETW** (comportement), **pare-feu/kill switch**, scan mémoire. Sans admin, ces modules passent en « Indisponible » sans planter (le reste fonctionne).
-3. **Windows Defender** supprime le fichier de test EICAR et certains spécimens **avant** que CoreGuard ne les voie. Pour tester sereinement : travaille dans une **VM**, ou ajoute temporairement une exclusion Defender sur le dossier de test, ou utilise les spécimens `demo/` (bénins, pensés pour ne pas être supprimés).
-4. **Tout est bénin** : les spécimens `demo/` n'agissent que sous `%TEMP%\CoreGuardDemo`, sur `localhost`, avec données factices et nettoyage. Lance toujours le nettoyage indiqué après chaque essai.
+1. Installer CoreGuard avec **`CoreGuard-Setup.exe`** (voir [GUIDE.md](GUIDE.md)) : application, service, AMSI, hôte de
+   l'extension. Les spécimens sont copiés dans `C:\Program Files\CoreGuard\Demo`.
+   *Depuis le dépôt (développement)* : `./scripts/install-service.ps1` (administrateur), puis
+   `dotnet run --project AntivirusIA.UI`.
+2. Ouvrir CoreGuard (icône près de l'horloge) : le **tableau de bord** doit afficher « Service connecté » et les modules
+   actifs ; les alertes de chaque test y apparaissent dans *Alertes en temps réel*.
+3. Ouvrir une console **PowerShell** dans le dossier des spécimens :
+   ```powershell
+   cd "C:\Program Files\CoreGuard\Demo"
+   ```
+   (ou `cd demo` à la racine du dépôt). Si PowerShell refuse les scripts : `Set-ExecutionPolicy -Scope Process Bypass`.
+4. Pour les spécimens qui doivent être **arrêtés** par CoreGuard, le script se relance dans un processus séparé et
+   affiche une ligne **`RÉSULTAT : …`** : c'est elle qui dit si la protection a fonctionné.
 
-### Les 3 niveaux de test (du plus sûr au plus visuel)
+## 1. Campagne de test (ordre recommandé)
 
-- **Niveau A — Tests automatisés** : `dotnet test AntivirusIA.slnx` → **196 tests** prouvent la logique de chaque moteur/module. C'est la preuve rigoureuse et reproductible.
-- **Niveau B — Analyse dans l'UI** : le chemin **entièrement câblé**. On analyse un fichier/dossier → verdict coloré + explication IA. C'est la démo phare.
-- **Niveau C — Temps réel & spécimens** : canaris, presse-papiers, persistance, etc. Certains sont actifs (à activer dans Réglages), d'autres ont un détecteur **à venir** (voir statut par user story).
+| # | Fonction testée | Commande | Résultat attendu | Observé |
+|---|---|---|---|---|
+| 01 | AMSI (script obfusqué) | `powershell -File .\01-powershell-amsi\demo-amsi.ps1` | « Ce script contient du contenu malveillant… bloqué » | ⚠️ détecté par le service mais exécuté (bogue du fournisseur, **corrigé** ; à revérifier après réinstallation) |
+| 02 | Anti-ransomware, 1re couche (AMSI) | `powershell -File .\02-ransomware-canari\demo-ransomware.ps1` | script bloqué **avant** exécution | ✅ bloqué au chargement |
+| 02b | Anti-ransomware, 2e couche (leurres + audit) | `.\02-ransomware-canari\RansomwareSim\RansomwareSim.exe` | arrêté au **premier** leurre, code `0xC0DE0001` ; leurre restauré | ✅ arrêté au 1er leurre |
+| 03 | Persistance | `powershell -File .\03-persistance\demo-persistance.ps1` | 3 fenêtres « Autoriser / Bloquer » ; *Bloquer* retire l'entrée | ✅ |
+| 04 | BadUSB (frappe automatique) | `.\04-badusb-hid\BadUsbSim.exe` (ne pas toucher au clavier) | ~30 caractères passent puis **clavier bloqué 10 s** | ✅ 2 000 car. tentés à ~870/s, bloqué |
+| 05 | Crypto-clipper | `.\05-crypto-clipper\ClipperSim.exe` | alerte « Presse-papiers détourné : valeur d'origine restaurée » | ✅ |
+| 07 | Voleur d'identifiants | `powershell -File .\07-vol-identifiants\demo-infostealer.ps1` | `RÉSULTAT : … ARRÊTÉ par CoreGuard en lisant le faux « Login Data »` | ✅ (2 essais sur 2) |
+| 08 | Auto-défense (anti-arrêt) | `powershell -File .\08-anti-kill\demo-anti-kill.ps1` | `taskkill /F` : « Accès refusé » ; service toujours `Running` | ✅ |
+| 09 | Injection mémoire (fileless) | `.\09-injection-memoire\MemoryInjectionSim.exe` | arrêté en ≤ 30 s, alerte « Code injecté » | ✅ arrêté à ~20 s (`0xC0DE0001`) |
+| 10 | Anti-phishing + IA | voir section 3 | page « CoreGuard n'aime pas ce site », « doute », liste noire | ✅ |
+| 11 | Smart Download Guard | `powershell -File .\11-telechargement\demo-telechargement.ps1` | fenêtres vert / orange / rouge avec le site d'origine | ✅ |
+| 12 | Mode Paranoïa | activer le mode (tableau de bord), puis `powershell -File .\12-paranoia\demo-paranoia.ps1` | `RÉSULTAT : arrêté par CoreGuard` ; USB bloqué | ✅ (USBSTOR = 4, exécution arrêtée par ETW) |
+| 13 | Pare-feu natif WFP | console **administrateur** : `dotnet run --project demo\13-pare-feu-wfp` | curl réussit, puis **bloqué** par le filtre WFP, puis réussit à nouveau | ✅ |
 
----
+**Nettoyages** : `.\03-persistance\demo-persistance.ps1 -Nettoyer`, `.\07-vol-identifiants\demo-infostealer.ps1 -Nettoyer`,
+`.\11-telechargement\demo-telechargement.ps1 -Nettoyer`, `.\12-paranoia\demo-paranoia.ps1 -Nettoyer`,
+`Remove-Item -Recurse "$env:USERPROFILE\Documents\CoreGuardDemo"` (fichiers factices du 02). Désactiver le Mode
+Paranoïa ensuite (mot de passe de protection) pour libérer l'USB.
 
-## 2. User stories — testables EN DIRECT dès maintenant
+## 2. Analyse, quarantaine, IA
 
-Format : **En tant que** … / **Je veux** … / **Afin de** … — puis *Comment tester*, *Résultat attendu*, *Statut*.
+1. **Fichier de test EICAR** (fichier standard de test des antivirus, inoffensif) : créer `eicar.txt` contenant
+   `X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*`, puis **Analyse** > choisir le fichier.
+   Attendu : **Malveillant** (signature connue + règle), explication de l'IA locale, bouton *Quarantaine*.
+2. **Quarantaine** > *Restaurer* : le fichier revient à sa place ; *Supprimer* : définitif.
+3. **IA niveau 1 (EMBER / ONNX)** : analyser un `.exe` ; l'indice « IA niveau 1 » n'apparaît que si le modèle le juge
+   malveillant. Tests automatiques : `dotnet test AntivirusIA.Tests --filter EmberModelTests`
+   (parité avec la référence EMBER, latence, aucun faux positif sur les exécutables Windows). Méthode et chiffres :
+   [IA-ENTRAINEMENT.md](IA-ENTRAINEMENT.md).
 
-### US-01 — Analyser un fichier/dossier à la demande
-- **En tant qu'**utilisateur, **je veux** analyser un fichier ou un dossier, **afin de** savoir s'il est sain, suspect ou malveillant.
-- **Comment tester :** lancer l'app → page **Analyse** → choisir un fichier ou un dossier → lancer.
-- **Résultat attendu :** une pastille de verdict colorée (**vert** Sain / **orange** Suspect / **rouge** Malveillant) par fichier, avec le détail dépliable des indices (signature, heuristique, entropie, PE statique) et le score.
-- **Statut : ✅ actif.**
+## 3. Navigateur : anti-phishing, IA, coffre-fort
 
-### US-02 — Obtenir une explication en langage clair (IA)
-- **…je veux** une explication compréhensible du verdict, **afin de** comprendre pourquoi un fichier est douteux.
-- **Comment tester :** app lancée **depuis la racine** (modèle présent) → analyser un fichier **non sain** → lire l'explication sous le verdict.
-- **Résultat attendu :** une phrase d'explication générée par le LLM local. Si le modèle est absent, l'app affiche « Verdict établi par les moteurs locaux » (repli propre, **sans planter**).
-- **Statut : ✅ actif** (inférence CPU, quelques secondes au 1er appel ; au plus 5 appels IA par lot).
+1. Charger l'extension (`C:\Program Files\CoreGuard\Extension`, mode développeur) et ouvrir CoreGuard.
+2. Lancer le laboratoire : `powershell -File .\10-phishing-ia\serve-phishing-lab.ps1`
+3. Ouvrir, dans Chrome ou Edge :
 
-### US-03 — Détecter un malware connu par signature
-- **…je veux** qu'un fichier malveillant connu soit reconnu, **afin de** bloquer les menaces répertoriées.
-- **Comment tester :** analyser le fichier de test **EICAR** (standard). Comme Defender le supprime souvent, en VM/avec exclusion. Variante fiable : calculer le SHA-256 d'un fichier bénin (`Get-FileHash`), l'ajouter à `AntivirusIA.Engines/Data/signatures.json`, recompiler, puis l'analyser.
-- **Résultat attendu :** verdict **Malveillant** (score 100), indice « Signature connue ».
-- **Statut : ✅ actif** (attention au préalable Defender).
+| Adresse | Attendu |
+|---|---|
+| `http://ameli-remboursement.localhost:8088/ameli.html` | interception immédiate (imitation du nom ameli) |
+| `http://paypa1-verification.localhost:8088/paypal.html` | capture + OCR : « PayPal » sur un domaine tiers → interception |
+| `http://suivi-colis-livraison.localhost:8088/colis.html` | arnaque sans marque : l'IA locale juge, avis affiché (20 à 90 s) |
+| `http://cadeau-abonnement.localhost:8088/offre.html` puis **Ctrl+Maj+Y** | fenêtre « CoreGuard doute de ce site » |
+| `http://liste-noire-demo.localhost:8088/` | liste noire → interception |
+| `http://club-tennis-lilas.localhost:8088/club.html` | site inconnu légitime : aucune alerte |
 
-### US-04 — Repérer un exécutable packé / aux API sensibles (PE statique)
-- **…je veux** qu'un `.exe` suspect (packé, imports d'injection) soit signalé, **afin de** détecter des menaces **inconnues** sans signature.
-- **Comment tester :** analyser un exécutable packé (ex. compressé UPX) ou un binaire aux imports sensibles.
-- **Résultat attendu :** indices « PE statique » (section exécutable à haute entropie, RWX, imports type `VirtualAlloc`/`WriteProcessMemory`/`CreateRemoteThread`), score ↑.
-- **Statut : ✅ actif.**
+4. Sur une page d'interception : *Je fais confiance* → CoreGuard demande confirmation **dans sa fenêtre** (Annuler →
+   rien n'est enregistré) ; *Quitter ce site* → nouvel onglet.
+5. **Mesure chiffrée sans navigateur** : `dotnet run --project demo\10-phishing-ia\eval` (19 cas, précision / rappel avec
+   et sans IA ; résultat : 11/11 arnaques, 0 fausse alerte).
+6. **Coffre-fort** : *Coffre-fort* > créer, ajouter un identifiant pour un site ; sur sa page de connexion, icône de
+   l'extension > *Remplir* ; sur une page d'arnaque, le remplissage est **refusé**.
 
-### US-05 — Mettre en quarantaine, restaurer, supprimer
-- **…je veux** isoler un fichier dangereux, **afin de** neutraliser la menace tout en pouvant revenir en arrière.
-- **Comment tester :** page **Quarantaine** → mettre un fichier en quarantaine → vérifier qu'il disparaît de son emplacement → **Restaurer** → vérifier son retour ; puis **Supprimer**.
-- **Résultat attendu :** le fichier est chiffré (AES-256) dans le coffre de quarantaine, restaurable à l'identique.
-- **Statut : ✅ actif.**
+## 4. Verrouillage et contrôle à distance par téléphone
 
-### US-06 — Consulter l'historique des analyses
-- **…je veux** revoir mes analyses passées, **afin de** suivre l'activité.
-- **Comment tester :** faire quelques analyses → page **Historique**.
-- **Résultat attendu :** liste horodatée (chemin, score, verdict) persistée en SQLite.
-- **Statut : ✅ actif.**
+1. **Verrouillage local** : *Tableau de bord > Verrouiller le PC* : écran CoreGuard, clés USB et nouveaux périphériques
+   refusés. Déverrouiller : **Ctrl+R**, puis mot de passe de protection.
+2. **Téléphone** : *Réglages > Contrôle à distance* > *Point d'accès mobile de Windows* (l'activer) → connecter le
+   téléphone à ce Wi-Fi → *Associer un téléphone* (mot de passe) → scanner le QR code.
+3. Sur le téléphone : *Verrouiller le PC* → l'écran de verrouillage apparaît sur le PC ; *Déverrouiller* → il disparaît ;
+   *Activer / Désactiver le Mode Paranoïa* → l'état change dans le tableau de bord. Chaque ordre apparaît dans les alertes
+   (« Ordre exécuté depuis le téléphone »).
+4. Contrôle de sécurité : depuis un autre appareil non associé, ouvrir la même adresse → « Ce téléphone n'est pas
+   associé » ; tout ordre forgé est refusé (« Ordre refusé » dans les alertes, blocage après 5 essais).
+5. *Révoquer* : le téléphone ne peut plus rien faire.
 
-### US-07 — Voir le flux d'alertes temps réel
-- **…je veux** voir les alertes en direct sur le tableau de bord, **afin de** réagir vite.
-- **Comment tester :** page **Tableau de bord** → bouton **« Simuler une alerte »**.
-- **Résultat attendu :** une alerte apparaît immédiatement dans le flux (démonstration fiable du rendu temps réel, sans rien exécuter de risqué).
-- **Statut : ✅ actif.**
+## 5. Tests automatisés
 
-### US-08 — Bloquer un détournement du presse-papiers (crypto-clipper)
-- **…je veux** être protégé si un malware remplace une adresse crypto copiée, **afin de** ne pas envoyer mes fonds à un attaquant.
-- **Comment tester :** activer la protection presse-papiers (Réglages) → `dotnet run --project .\demo\05-crypto-clipper` → copier du texte.
-- **Résultat attendu :** la valeur d'origine est **restaurée**, alerte « détournement du presse-papiers bloqué ». Arrêt : `Ctrl+C` ou 60 s.
-- **Statut : ✅ actif** (module `CoreGuard.Privacy`).
+```powershell
+dotnet test AntivirusIA.slnx
+```
+466 tests (moteurs, IA niveau 1, quarantaine, comportement, réseau et WFP, IPC et relais, service, contrôle à distance,
+fournisseur AMSI natif, vie privée, coffre, extension et base de confiance). Le test de blocage WFP réel est ignoré hors
+console administrateur (lancé et réussi en administrateur).
 
-### US-09 — Surveiller l'accès caméra/micro (Privacy Guard)
-- **…je veux** savoir quel programme utilise ma caméra/micro, **afin de** couper un accès non autorisé.
-- **Comment tester :** ouvrir une app caméra (Zoom, Caméra Windows) → observer le badge Privacy Guard.
-- **Résultat attendu :** le processus utilisant le capteur est signalé ; hors liste blanche → alerte.
-- **Statut : ✅ actif** (lecture du registre `CapabilityAccessManager`).
+## 6. Si un test ne donne pas le résultat attendu
 
-### US-10 — Détecter une tentative de persistance
-- **…je veux** être averti quand un programme s'installe au démarrage, **afin de** l'autoriser ou le bloquer.
-- **Comment tester :** `./demo/03-persistance/demo-persistance.ps1` (crée une clé `HKCU\…\Run`, une tâche planifiée de l'utilisateur et un fichier dans son dossier Démarrage, sans admin). **Puis obligatoirement** `./demo/03-persistance/demo-persistance.ps1 -Nettoyer`.
-- **Résultat attendu :** en ≤ 5 s, 3 fenêtres « Nouveau programme au démarrage » (en bas à droite) avec le niveau de risque (« Risque élevé » : script dans un dossier temporaire). **Bloquer** → valeur Run et tâche supprimées (`reg query` / `schtasks /Query` ne les trouvent plus), fichier Démarrage visible dans la page Quarantaine. **Autoriser** → plus de question pour cette entrée tant que la commande ne change pas.
-- **Statut : ✅ actif** (sondage registre/tâches/dossier Démarrage ; services 7045 via journal Système, admin recommandé).
-
----
-
-## 3. User stories — attaque OK, détecteur À VENIR / câblage requis
-
-Ces spécimens s'exécutent (côté « attaque »), mais la **capture automatique par CoreGuard** demande soit la Phase 2, soit une activation/branchement supplémentaire. Honnêteté assumée.
-
-### US-11 — Anti-ransomware par canaris
-- **Comment tester :** activer les canaris dans **Réglages** (déploie des leurres dans Documents/Bureau/Images). Pour voir le déclenchement, **modifier un de ces leurres**. Le spécimen `demo/02-ransomware-canari` écrit, lui, dans `%TEMP%\CoreGuardDemo\ransomware` (isolé) : pour un test de bout en bout, il faut faire pointer la surveillance **et** le spécimen sur le **même dossier** (alignement des noms de canaris à finaliser).
-- **Statut : ⚠️ partiel** — le moteur `CoreGuard.RealTime` fonctionne et est testé, mais l'alignement dossier/noms avec le spécimen reste à câbler. La suppression VSS est **simulée** (jamais exécutée).
-
-### US-12 — AMSI (scripts PowerShell obfusqués)
-- **Comment tester :** `demo/01-powershell-amsi/demo-amsi.ps1` (Base64 + `Invoke-Expression`, texte décodé = `DEMO-INOFFENSIF`).
-- **Statut : ⚠️ à la demande** — `AmsiScanner` peut analyser un script fourni, mais l'**interception passive** de tout PowerShell (fournisseur AMSI enregistré) n'est pas encore branchée. Le moteur de règles comportementales (parent→enfant, Base64) est testé.
-
-### US-13 — Comportement système via ETW
-- **Comment tester (admin) :** déclencher une chaîne Office→PowerShell ou une commande `vssadmin delete shadows`.
-- **Statut : ⚠️ nécessite admin** — `EtwProcessMonitor` démarre en admin ; le `BehaviorRuleEngine` (57 tests) couvre toutes les règles. Sans admin, le module se signale « Indisponible ».
-
-### US-14 — Pare-feu applicatif & kill switch réseau
-- **Comment tester (admin) :** via l'API `INetworkGuard` (bloquer une app/un port, activer le kill switch) et `PortInspector` pour lister les connexions→PID.
-- **Statut : ⚠️ nécessite admin** — logique testée (10 tests) ; pas encore de page UI dédiée (pilotable par code/au branchement service).
-
-### US-15 — Phishing visuel par OCR (extension navigateur)
-- **Mesure sans installation :** `dotnet run --project demo/10-phishing-ia/eval` (captures réelles des pages de labo, OCR, base de confiance, IA locale) → précision / rappel avec et sans IA, détail dans `demo/10-phishing-ia/resultats.md`.
-- **En direct :** `./scripts/install-browser-extension.ps1`, charger l'extension (`CoreGuard.Extension/extension/`), ouvrir CoreGuard, lancer `./demo/10-phishing-ia/serve-phishing-lab.ps1` et suivre `demo/10-phishing-ia/README.md` (interception, « doute », avis de l'IA, liste noire, confiance confirmée dans CoreGuard). Page « image seule » : `./demo/06-phishing-visuel/serve-phishing-demo.ps1` puis bouton « Analyser cette page » de l'extension.
-- **Résultat mesuré (19 cas) :** règles seules 9/11 arnaques, 0 fausse alerte ; règles + IA avec garde-fou 11/11, 0 fausse alerte (historique des essais dans `demo/10-phishing-ia/README.md`).
-- **Statut : ✅ actif et vérifié en direct dans Edge** (interception, « doute », liste noire, confiance confirmée dans CoreGuard, alertes du tableau de bord) — 75 tests extension + 17 tests de revue/relais (Ipc).
-
-### US-16 — BadUSB (frappe HID anormale)
-- **Comment tester :** `dotnet run --project .\demo\04-badusb-hid` (frappe ~1500 car/s dans sa propre fenêtre ; `Échap` pour arrêter).
-- **Statut : 🔜 détecteur à venir** — le moniteur HID n'est pas encore implémenté.
-
-### US-17 — Vol d'identifiants navigateur (infostealer)
-- **Comment tester :** `./demo/07-vol-identifiants/demo-infostealer.ps1` (ouvre un **faux** `Login Data` sous `%TEMP%`). Nettoyage : `-Nettoyer`.
-- **Statut : 🔜 détecteur à venir** — le blocage d'accès par fichier relève du **minifilter noyau (Phase 2)**. En Phase 1 user-mode, pas d'interception fiable avant lecture.
-
-### US-18 — Coffre-fort de mots de passe (Vault)
-- **Comment tester :** `dotnet test CoreGuard.Vault.Tests` (11 tests : création, déverrouillage, mauvais mot de passe, round-trip chiffrement, générateur).
-- **Statut : ✅ module actif / ⚠️ pas de page UI** — le coffre fonctionne (Argon2id + AES-256-GCM) mais n'a pas encore d'écran dédié dans l'interface.
-
-### US-20 — Smart Download Guard (vert / orange / rouge)
-- **Comment tester :** CoreGuard ouvert (ou en arrière-plan), puis `./demo/11-telechargement/demo-telechargement.ps1` (4 fichiers de test avec une marque du Web identique à celle d'un navigateur). Nettoyage : `-Nettoyer`.
-- **Résultat attendu :** `outil.exe` orange (non signé, venu d'Internet, site affiché), `facture.js` orange ou rouge, `cours.pdf` vert (alerte simple), `restreint.txt` rouge (site restreint) ; bouton « Mettre en quarantaine ».
-- **Statut : ✅ actif et vérifié en réel.**
-
-### US-21 — Mode Paranoïa
-- **Comment tester :** activer « Mode paranoïa » (tableau de bord), puis `./demo/12-paranoia/demo-paranoia.ps1` (programme non signé lancé depuis Téléchargements).
-- **Résultat attendu :** « RESULTAT : arrêté par CoreGuard » et alerte « Exécution bloquée ». Avec le service à jour : USB bloqué (`reg query HKLM\SYSTEM\CurrentControlSet\Services\USBSTOR /v Start` → 4), filtres WFP « CoreGuard » (`netsh wfp show filters`, admin) ; désactiver demande le mot de passe de protection.
-- **Statut : ✅ actif** (blocage d'exécution vérifié en réel sans service).
-
-### US-22 — Pare-feu natif WFP
-- **Comment tester :** console **administrateur** : `dotnet run --project demo/13-pare-feu-wfp` (option `--bouclier`).
-- **Résultat attendu :** curl réussit, puis échoue tant que le filtre WFP par AppId existe, puis réussit de nouveau à la fermeture de la session (filtres retirés par Windows). Test automatisé : `dotnet test CoreGuard.Network.Tests` (blocage réel en administrateur ; identifiants des couches vérifiés même sans droits).
-- **Statut : ✅ vérifié en console administrateur.**
-
-### US-23 — IA niveau 1 (classifieur statique EMBER / ONNX)
-- **Comment tester :** `dotnet test AntivirusIA.Tests --filter EmberModelTests` (parité avec la référence EMBER, probabilité ONNX identique à Python, fichiers Windows non signalés, budget de temps) ; analyser un exécutable depuis la page Analyse : l'indice « IA niveau 1 (EMBER / ONNX) » apparaît s'il dépasse un seuil.
-- **Réentraîner :** `python scripts/ml/train_ember_subset.py <ember_dataset_2018_2.tar.bz2> AntivirusIA.Ml/Models AntivirusIA.Tests/Data/ember-parity.json` (packages : numpy, lightgbm, scikit-learn, onnx, onnxmltools, onnxruntime).
-- **Résultats :** AUC 0,980 sur 100 561 fichiers de test ; 0 alerte au seuil haut sur 2 177 exécutables Windows sains ; ≈ 17 ms par fichier. Méthode et limites : `docs/IA-ENTRAINEMENT.md`.
-- **Statut : ✅ actif.**
-
-### US-19 — Protection permanente en arrière-plan
-- **…je veux** que CoreGuard continue de me protéger quand je ferme sa fenêtre et qu'il redémarre avec Windows.
-- **Comment tester :** fermer la fenêtre (croix) → bulle « CoreGuard reste actif », l'icône reste près de l'horloge. Lancer `./demo/03-persistance/demo-persistance.ps1` fenêtre fermée → fenêtres « Autoriser / Bloquer » + bulle « CoreGuard - Persistance ». Relancer l'exécutable → la fenêtre existante revient (pas de seconde instance). Clic droit sur l'icône → Ouvrir / Verrouiller le PC / Quitter (confirmation). `reg query HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v CoreGuard` montre la commande `--background` ; se déconnecter / reconnecter → CoreGuard démarre caché.
-- **Statut : ✅ actif** (réglages : « Continuer en arrière-plan », « Lancer à l'ouverture de session »).
-
----
-
-## 4. Récapitulatif des spécimens de démo
-
-Depuis la racine du dépôt. Détails complets : `demo/README.md`.
-
-| Dossier | Lancer | Déclenche | Statut détection | Nettoyage |
-|---------|--------|-----------|------------------|-----------|
-| `01-powershell-amsi` | `./demo/01-powershell-amsi/demo-amsi.ps1` | AMSI / obfuscation | ⚠️ à la demande | aucun |
-| `02-ransomware-canari` | `./demo/02-ransomware-canari/demo-ransomware.ps1` | canaris + vssadmin simulé | ⚠️ partiel | `-Nettoyer` (ou fichier `STOP`) |
-| `03-persistance` | `./demo/03-persistance/demo-persistance.ps1` | clé Run + tâche + fichier Démarrage | ✅ actif | **`-Nettoyer` obligatoire** |
-| `04-badusb-hid` | `dotnet run --project .\demo\04-badusb-hid` | frappe HID rapide | 🔜 à venir | `Échap` / fermer |
-| `05-crypto-clipper` | `dotnet run --project .\demo\05-crypto-clipper` | presse-papiers | ✅ actif | `Ctrl+C` / 60 s |
-| `06-phishing-visuel` | `./demo/06-phishing-visuel/serve-phishing-demo.ps1` | OCR phishing (image seule) | ✅ bouton « Analyser cette page » | `Ctrl+C` / `/stop` |
-| `11-telechargement` | `./demo/11-telechargement/demo-telechargement.ps1` | Smart Download Guard | ✅ actif | `-Nettoyer` |
-| `12-paranoia` | `./demo/12-paranoia/demo-paranoia.ps1` | Mode Paranoïa (blocage d'exécution) | ✅ actif | `-Nettoyer` |
-| `13-pare-feu-wfp` | `dotnet run --project demo/13-pare-feu-wfp` (admin) | WFP natif | ✅ actif | session dynamique : rien à nettoyer |
-| `10-phishing-ia` | `dotnet run --project demo/10-phishing-ia/eval` ; `./demo/10-phishing-ia/serve-phishing-lab.ps1` | base de confiance, OCR, IA locale, liste noire | ✅ actif | `Ctrl+C` / `/stop` (entrée de liste noire retirée) |
-| `07-vol-identifiants` | `./demo/07-vol-identifiants/demo-infostealer.ps1` | accès `Login Data` | 🔜 à venir | `-Nettoyer` |
-
-Légende : ✅ actif · ⚠️ nécessite activation/câblage · 🔜 détecteur prévu en Phase 2.
-
----
-
-## 5. Ordre recommandé pour une démonstration (soutenance)
-
-1. **`dotnet test AntivirusIA.slnx`** → « 196 tests verts » (crédibilité immédiate).
-2. Lancer l'app → **Analyse** d'un dossier mêlant fichiers sains + un `.exe` packé → verdicts colorés + **explication IA** (US-01, US-02, US-04).
-3. **Signature** : EICAR (ou hash ajouté) → verdict Malveillant (US-03).
-4. **Quarantaine** → isoler puis restaurer (US-05), **Historique** (US-06).
-5. **Tableau de bord → « Simuler une alerte »** (US-07) et **crypto-clipper** (US-08, visuel et fiable).
-6. **Persistance** (US-10) avec nettoyage, puis **Privacy Guard** (US-09).
-7. Conclure sur les perspectives **Phase 2** (minifilter noyau) pour transformer les détections « à venir » (HID, infostealer, canaris pré-écriture) en **blocages inviolables**.
-
-> Conseil : fais la démo dans une **VM** avec un **snapshot** préalable, et lance les nettoyages (`-Nettoyer`) après chaque spécimen.
+| Symptôme | Cause probable | Vérification |
+|---|---|---|
+| `RÉSULTAT : … sans être arrêté` (02b, 07) | service non installé ou audit inactif | *Réglages > Service* ; `auditpol /get /subcategory:"{0CCE921D-69AE-11D9-BED3-505054503030}"` (admin) |
+| Script 01 exécuté | fournisseur AMSI non chargé par cette console | ouvrir une **nouvelle** console PowerShell ; *Réglages* : compteur AMSI |
+| Pas de fenêtre de téléchargement | module « Surveillance des fichiers » désactivé | tableau de bord |
+| Téléphone : « PC injoignable » | pas sur le même réseau, ou point d'accès coupé | *Réglages > Contrôle à distance* : adresses affichées |
+| Extension sans effet | hôte non enregistré | réinstaller avec l'option « Hôte de l'extension » |

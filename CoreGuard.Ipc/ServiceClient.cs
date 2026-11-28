@@ -182,6 +182,28 @@ public sealed partial class ServiceClient : IAsyncDisposable
         finally { _requestLock.Release(); }
     }
 
+    /// <summary>
+    /// Associe un téléphone (ou révoque l'association) : exige le mot de passe de protection (défi-réponse HMAC),
+    /// car la clé renvoyée permet ensuite de verrouiller / déverrouiller le PC à distance.
+    /// </summary>
+    public async Task<RemotePairing> RemoteAsync(bool pair, string password, CancellationToken ct = default)
+    {
+        if (!IsConnected) return new RemotePairing(false, 0, null, [], "Service CoreGuard non connecté.");
+        await _requestLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            IpcEnvelope challengeReply = await RoundTripAsync(new IpcEnvelope(IpcContract.Types.Challenge), ct).ConfigureAwait(false);
+            if (challengeReply.Challenge is not { } challenge)
+                return new RemotePairing(false, 0, null, [], challengeReply.Error ?? "Le service n'a pas fourni de défi.");
+            string answer = await Task.Run(() => StopProtocol.Answer(password, challenge), ct).ConfigureAwait(false);
+            IpcEnvelope reply = await RoundTripAsync(new IpcEnvelope(pair ? IpcContract.Types.RemotePair : IpcContract.Types.RemoteRevoke,
+                Stop: new StopRequest(challenge.Nonce, answer)), ct).ConfigureAwait(false);
+            return reply.Remote ?? new RemotePairing(false, 0, null, [], reply.StopResult?.Message ?? reply.Error ?? "Réponse du service invalide.");
+        }
+        catch (TimeoutException) { return new RemotePairing(false, 0, null, [], "Le service ne répond pas."); }
+        finally { _requestLock.Release(); }
+    }
+
     // Une seule demande à la fois (verrou) : la prochaine réponse non sollicitée (hors état/alerte) lui revient
     private async Task<IpcEnvelope> RoundTripAsync(IpcEnvelope request, CancellationToken ct)
     {
@@ -236,7 +258,7 @@ public sealed partial class ServiceClient : IAsyncDisposable
                         AlertReceived?.Invoke(this, message.Alert);
                         break;
                     case IpcContract.Types.Challenge or IpcContract.Types.StopResult or IpcContract.Types.LockdownResult
-                        or IpcContract.Types.ParanoiaResult or IpcContract.Types.Error:
+                        or IpcContract.Types.ParanoiaResult or IpcContract.Types.RemoteResult or IpcContract.Types.Error:
                         _pending?.TrySetResult(message);
                         break;
                 }

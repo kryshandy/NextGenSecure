@@ -25,7 +25,8 @@ public sealed class ParanoiaGuard(
     Func<bool> lockdownEngaged,
     Action<string, string, string, string> publish,
     ILogger logger,
-    string statePath) : IDisposable
+    string statePath,
+    Func<ushort[]>? allowedInboundPorts = null) : IDisposable
 {
     private const int UsbDisabled = 4;
     private readonly object _gate = new();
@@ -99,15 +100,30 @@ public sealed class ParanoiaGuard(
         if (guard is not null) _ = Task.Run(() => guard.OnProcessStarted(pid, image));
     }
 
+    /// <summary>Réapplique le pare-feu (port du contrôle à distance ouvert ou fermé) si le mode est actif.</summary>
+    public void RefreshFirewall()
+    {
+        lock (_gate)
+        {
+            if (_state.Enabled) ApplyFirewallLocked();
+        }
+    }
+
     private void ApplyLocked()
     {
         TryUsb(UsbDisabled);
+        ApplyFirewallLocked();
+        ApplyExecutionGuardLocked();
+    }
 
+    private void ApplyFirewallLocked()
+    {
         _wfp?.Dispose();
         try
         {
             _wfp = new WfpFirewall(dynamic: true);
-            _wfp.BlockAllInbound("Paranoïa : connexions entrantes");
+            // Le contrôle à distance par téléphone reste joignable (le pare-feu Windows le limite au réseau local)
+            _wfp.BlockAllInbound("Paranoïa : connexions entrantes", allowedInboundPorts?.Invoke() ?? []);
             int blocked = 0;
             foreach (string tool in UserDirExecutionPolicy.NetworkLolbins)
             {
@@ -125,7 +141,10 @@ public sealed class ParanoiaGuard(
             _firewallText = "pare-feu WFP indisponible";
             logger.LogWarning("Paranoïa, WFP : {Message}", ex.Message);
         }
+    }
 
+    private void ApplyExecutionGuardLocked()
+    {
         _exec?.Dispose();
         _exec = new UserDirExecutionGuard(IsTrusted, Terminate, ProcessAncestry.ImagePath);
         _exec.Blocked += b => publish("Critical", "Paranoïa", "Exécution bloquée",

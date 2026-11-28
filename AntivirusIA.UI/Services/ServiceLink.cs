@@ -80,6 +80,14 @@ public sealed class ServiceLink : IDisposable
 
     public Task<StopResult> EnableParanoiaAsync() => _client.EnableParanoiaAsync();
 
+    /// <summary>État du contrôle à distance par téléphone (texte du service), null si inconnu.</summary>
+    public string? RemoteText => _status?.Modules.FirstOrDefault(m => m.Name == ServiceModules.Remote)?.Text;
+
+    public bool RemoteActive => IsConnected && _status!.IsModuleActive(ServiceModules.Remote);
+
+    /// <summary>Associe un téléphone (nouvelle clé) ou révoque l'association ; mot de passe de protection requis.</summary>
+    public Task<RemotePairing> RemoteAsync(bool pair, string password) => _client.RemoteAsync(pair, password);
+
     public Task<StopResult> DisableParanoiaAsync(string? password) => _client.DisableParanoiaAsync(password);
 
     /// <summary>Vrai si le service assure les canaris anti-ransomware.</summary>

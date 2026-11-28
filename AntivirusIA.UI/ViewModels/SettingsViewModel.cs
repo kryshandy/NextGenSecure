@@ -168,9 +168,81 @@ public sealed partial class SettingsViewModel : ObservableObject, IPageViewModel
               + (s.Modules.FirstOrDefault(m => m.Name == CoreGuard.Ipc.ServiceModules.Memory) is { } memory ? $" Mémoire : {memory.Text}." : "")
               + (s.Modules.FirstOrDefault(m => m.Name == CoreGuard.Ipc.ServiceModules.Credentials) is { } creds ? $" Identifiants : {creds.Text}." : "");
         StopProtectionCommand.NotifyCanExecuteChanged();
+        PairPhoneCommand.NotifyCanExecuteChanged();
+        RevokePhoneCommand.NotifyCanExecuteChanged();
+        RefreshRemoteStatus();
     }
 
     private bool CanStopProtection() => _service.IsConnected;
+
+    // ---- Contrôle à distance par téléphone ----
+    [ObservableProperty] private string _remoteStatus = string.Empty;
+    [ObservableProperty] private System.Windows.Media.ImageSource? _remoteQr;
+    [ObservableProperty] private string _remoteUrls = string.Empty;
+    [ObservableProperty] private bool _remoteQrVisible;
+
+    private void RefreshRemoteStatus() =>
+        RemoteStatus = !_service.IsConnected ? "Service CoreGuard non connecté : le contrôle à distance est assuré par le service."
+            : _service.RemoteText ?? "Service à mettre à jour (scripts/install-service.ps1) pour le contrôle à distance.";
+
+    /// <summary>
+    /// Associe un téléphone : le service crée une clé de 256 bits et renvoie les adresses ; le QR code contient l'adresse
+    /// et la clé (après « # », jamais envoyée sur le réseau). Toute association précédente est révoquée.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanStopProtection))]
+    private void PairPhone()
+    {
+        CoreGuard.Ipc.RemotePairing? pairing = null;
+        bool ok = _dialogs.AskPassword("Associer un téléphone",
+            "Le téléphone associé pourra verrouiller ou déverrouiller ce PC et activer ou désactiver le Mode Paranoïa, depuis le même Wi-Fi " +
+            "ou le point d'accès mobile du PC (sans Internet). Saisissez le mot de passe de protection pour afficher le QR code.",
+            "Associer", async pwd =>
+            {
+                pairing = await _service.RemoteAsync(pair: true, pwd);
+                return new CoreGuard.Ipc.StopResult(pairing.Enabled, pairing.Message);
+            });
+        if (!ok || pairing is not { Enabled: true } p || p.Urls.Count == 0)
+        {
+            RemoteQrVisible = false;
+            RemoteStatus = pairing?.Message ?? RemoteStatus;
+            return;
+        }
+        RemoteQr = QrImage(p.Urls[0]);
+        RemoteUrls = "Adresse(s) : " + string.Join("   ou   ", p.Urls.Select(u => u[..u.IndexOf('#')]));
+        RemoteQrVisible = true;
+        RemoteStatus = "Scannez le QR code avec l'appareil photo du téléphone (connecté au même Wi-Fi ou au point d'accès du PC).";
+    }
+
+    [RelayCommand(CanExecute = nameof(CanStopProtection))]
+    private void RevokePhone()
+    {
+        CoreGuard.Ipc.RemotePairing? result = null;
+        bool ok = _dialogs.AskPassword("Révoquer le téléphone",
+            "Le téléphone associé ne pourra plus agir sur ce PC.", "Révoquer", async pwd =>
+            {
+                result = await _service.RemoteAsync(pair: false, pwd);
+                return new CoreGuard.Ipc.StopResult(!result.Enabled && result.Message.Contains("désactivé"), result.Message);
+            });
+        if (ok) { RemoteQrVisible = false; RemoteQr = null; RemoteUrls = string.Empty; RemoteStatus = result?.Message ?? RemoteStatus; }
+    }
+
+    [RelayCommand]
+    private static void OpenHotspotSettings() =>
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:network-mobilehotspot") { UseShellExecute = true });
+
+    private static System.Windows.Media.ImageSource QrImage(string text)
+    {
+        var writer = new ZXing.BarcodeWriterPixelData
+        {
+            Format = ZXing.BarcodeFormat.QR_CODE,
+            Options = new ZXing.QrCode.QrCodeEncodingOptions { Width = 260, Height = 260, Margin = 1 }
+        };
+        var data = writer.Write(text);
+        var bitmap = System.Windows.Media.Imaging.BitmapSource.Create(data.Width, data.Height, 96, 96,
+            System.Windows.Media.PixelFormats.Bgra32, null, data.Pixels, data.Width * 4);
+        bitmap.Freeze();
+        return bitmap;
+    }
 
     /// <summary>Arrêt authentifié : le service vérifie le mot de passe par défi-réponse HMAC, puis prévient son watchdog.</summary>
     [RelayCommand(CanExecute = nameof(CanStopProtection))]

@@ -215,6 +215,30 @@
                         </StackPanel>
                     </ctl:SectionCard>
 
+                    <!-- Contrôle à distance par téléphone -->
+                    <ctl:SectionCard Icon="{StaticResource Icon.Lock}" Title="Contrôle à distance (téléphone)"
+                                     Subtitle="Verrouiller, déverrouiller, Mode Paranoïa depuis le téléphone : même Wi-Fi ou point d'accès mobile du PC, sans Internet.">
+                        <StackPanel>
+                            <TextBlock Text="{Binding RemoteStatus}" Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="Associer un téléphone" Style="{StaticResource Btn.Secondary}" MinHeight="32" Padding="12,4" Margin="0,0,8,0"
+                                        Command="{Binding PairPhoneCommand}"/>
+                                <Button Content="Révoquer" Style="{StaticResource Btn.Secondary}" MinHeight="32" Padding="12,4" Margin="0,0,8,0"
+                                        Command="{Binding RevokePhoneCommand}"/>
+                                <Button Content="Point d'accès mobile de Windows" Style="{StaticResource Btn.Secondary}" MinHeight="32" Padding="12,4"
+                                        Command="{Binding OpenHotspotSettingsCommand}"/>
+                            </StackPanel>
+                            <StackPanel Margin="0,14,0,0" Visibility="{Binding RemoteQrVisible, Converter={StaticResource BoolToVis}}">
+                                <Border Background="White" CornerRadius="10" Padding="10" HorizontalAlignment="Left">
+                                    <Image Source="{Binding RemoteQr}" Width="260" Height="260" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                                </Border>
+                                <TextBlock Text="{Binding RemoteUrls}" Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                                <TextBlock Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                           Text="Sans box : activez le point d'accès mobile de Windows, connectez le téléphone à ce Wi-Fi, puis scannez. Le QR code contient la clé secrète : ne le montrez à personne."/>
+                            </StackPanel>
+                        </StackPanel>
+                    </ctl:SectionCard>
+
                     <!-- Service et auto-défense -->
                     <ctl:SectionCard Icon="{StaticResource Icon.Lock}" Title="Service et auto-défense"
                                      Subtitle="Le service CoreGuard (SYSTEM) refuse les arrêts non autorisés et se relance s'il est tué.">

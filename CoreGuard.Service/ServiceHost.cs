@@ -36,6 +36,7 @@ public static class ServiceHost
     public static string SecretPath => Path.Combine(DataDirectory, "protection.json");
     public static string LockdownStatePath => Path.Combine(DataDirectory, "lockdown.json");
     public static string ParanoiaStatePath => Path.Combine(DataDirectory, "paranoia.json");
+    public static string RemoteControlPath => Path.Combine(DataDirectory, "remote-control.json");
     public static string RemoteLockPath => Path.Combine(DataDirectory, "remote-lock.json");
 
     /// <summary>Pipe utilisé : celui du service installé, ou celui de développement (console / --dev).</summary>

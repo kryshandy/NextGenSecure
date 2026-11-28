@@ -1,4 +1,4 @@
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using System.Security.Principal;
 
 namespace CoreGuard.Network;
@@ -64,6 +64,25 @@ public sealed class WindowsFirewall : INetworkGuard
         {
             rule.Protocol = proto;
             rule.RemotePorts = port.ToString();
+        });
+    }
+
+    /// <summary>
+    /// Autorise les connexions ENTRANTES sur un port TCP, uniquement depuis le sous-réseau local (Wi-Fi, point
+    /// d'accès mobile du PC) : jamais depuis Internet. Utilisé par le contrôle à distance par téléphone.
+    /// </summary>
+    public void AllowInboundPortFromLocalSubnet(string ruleName, int port)
+    {
+        var name = RuleNaming.ForRule(ruleName);
+        RuleNaming.ValidatePort(port);
+        RemoveRule(ruleName);
+        AddRule(name, rule =>
+        {
+            rule.Direction = 1;          // NET_FW_RULE_DIR_IN
+            rule.Action = 1;             // NET_FW_ACTION_ALLOW
+            rule.Protocol = 6;           // TCP
+            rule.LocalPorts = port.ToString();
+            rule.RemoteAddresses = "LocalSubnet";
         });
     }
 

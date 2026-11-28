@@ -21,6 +21,7 @@ Chaque module est un projet isolé qui ne référence que `AntivirusIA.Core`. Le
 | `CoreGuard.Extension` | Extension MV3 0.2.0 (vérification des pages, bandeau, fenêtre, auto-remplissage), hôte Native Messaging (OCR, QR, URL, coffre) ; installation `scripts/install-browser-extension.ps1` | Complet |
 | `CoreGuard.Ipc` | Canal UI ↔ service : trames JSON bornées, `PipeServer` (ACL, diffusion), `ServiceClient` (rejet des serveurs hors session 0), arrêt authentifié (PBKDF2 + HMAC) | Complet |
 | `CoreGuard.Service` | Service Windows LocalSystem : ETW, canaris + audit NTFS, anti-infostealer, analyse AMSI, scan mémoire, verrouillage d'urgence (USB, périphériques, réseau, ordre à distance), auto-défense, état et alertes sur le pipe | Partiel (persistance HKLM et réseau à migrer) |
+| `CoreGuard.Setup` | Assistant d'installation hors ligne (payload construit par `scripts/build-setup.ps1`), désinstallation | Complet |
 | `CoreGuard.AmsiProvider` | Fournisseur AMSI natif (NativeAOT, COM) : transmet chaque script au service avant exécution, bloque sur son verdict | Complet (x64, non signé) |
 | `CoreGuard.Devices` | Moniteur BadUSB : cadence de frappe (hook clavier), blocage de l'injection, détection des nouveaux claviers | Complet |
 | `CoreGuard.Memory` | Scan mémoire « fileless » : régions privées exécutables, détection d'images PE injectées | Complet |

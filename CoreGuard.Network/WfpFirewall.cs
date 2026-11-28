@@ -26,6 +26,7 @@ public sealed class WfpFirewall : IDisposable
     public static readonly Guid LayerRecvAcceptV6 = new("a3b42c97-9f04-4672-b87e-cee9c483257f");
     private static readonly Guid ConditionAppId = new("d78e1e87-8644-4ea5-9437-d809ecefc971");
     private static readonly Guid ConditionFlags = new("632ce23b-5167-435c-86d7-e903684aa80c");
+    private static readonly Guid ConditionLocalPort = new("0c1ba1af-5765-453f-af22-a8f791ac775b");
 
     private const uint RpcAuthnWinNt = 10;
     private const uint SessionFlagDynamic = 0x1;
@@ -33,7 +34,7 @@ public sealed class WfpFirewall : IDisposable
     private const uint ActionPermit = 0x1002;  // FWP_ACTION_PERMIT | FWP_ACTION_FLAG_TERMINATING
     private const uint FilterFlagPersistent = 0x1;
     private const uint SubLayerFlagPersistent = 0x1;
-    private const uint TypeEmpty = 0, TypeUint8 = 1, TypeUint32 = 3, TypeByteBlob = 12;
+    private const uint TypeEmpty = 0, TypeUint8 = 1, TypeUint16 = 2, TypeUint32 = 3, TypeByteBlob = 12;
     private const uint MatchEqual = 0, MatchFlagsAllSet = 6;
     private const uint FlagIsLoopback = 0x1;
     private const uint ErrorAlreadyExists = 0x80320009;
@@ -100,7 +101,7 @@ public sealed class WfpFirewall : IDisposable
     /// Mode bouclier : refuse toute connexion entrante non sollicitée (IPv4 et IPv6), sauf le trafic local (loopback),
     /// indispensable aux applications de la machine. Les réponses aux connexions sortantes ne sont pas concernées.
     /// </summary>
-    public IReadOnlyList<ulong> BlockAllInbound(string name)
+    public IReadOnlyList<ulong> BlockAllInbound(string name, params ushort[] allowedLocalPorts)
     {
         var loopback = new FWPM_FILTER_CONDITION0
         {
@@ -109,12 +110,27 @@ public sealed class WfpFirewall : IDisposable
             conditionValue = new FWP_VALUE0 { type = TypeUint32, value = (IntPtr)FlagIsLoopback }
         };
         return InTransaction(() =>
-        [
-            AddFilter(name + " : local autorisé (IPv4)", LayerRecvAcceptV4, ActionPermit, 15, [loopback]),
-            AddFilter(name + " : local autorisé (IPv6)", LayerRecvAcceptV6, ActionPermit, 15, [loopback]),
-            AddFilter(name + " (IPv4)", LayerRecvAcceptV4, ActionBlock, 5, []),
-            AddFilter(name + " (IPv6)", LayerRecvAcceptV6, ActionBlock, 5, [])
-        ]);
+        {
+            var ids = new List<ulong>
+            {
+                AddFilter(name + " : local autorisé (IPv4)", LayerRecvAcceptV4, ActionPermit, 15, [loopback]),
+                AddFilter(name + " : local autorisé (IPv6)", LayerRecvAcceptV6, ActionPermit, 15, [loopback])
+            };
+            // Ports explicitement ouverts (contrôle à distance par téléphone) : le pare-feu Windows limite déjà au sous-réseau local
+            foreach (ushort port in allowedLocalPorts)
+            {
+                var condition = new FWPM_FILTER_CONDITION0
+                {
+                    fieldKey = ConditionLocalPort,
+                    matchType = MatchEqual,
+                    conditionValue = new FWP_VALUE0 { type = TypeUint16, value = (IntPtr)port }
+                };
+                ids.Add(AddFilter($"{name} : port {port} autorisé", LayerRecvAcceptV4, ActionPermit, 15, [condition]));
+            }
+            ids.Add(AddFilter(name + " (IPv4)", LayerRecvAcceptV4, ActionBlock, 5, []));
+            ids.Add(AddFilter(name + " (IPv6)", LayerRecvAcceptV6, ActionBlock, 5, []));
+            return ids.ToArray();
+        });
     }
 
     /// <summary>Retire des filtres (absents : ignorés).</summary>
